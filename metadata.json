@@ -1,0 +1,5 @@
+{
+  "name": "GHL Sales Ops Dashboard",
+  "description": "A comprehensive sales operations dashboard for GoHighLevel subaccounts, featuring real-time webhook integration, pipeline analytics, and an AI-powered copilot.",
+  "requestFramePermissions": []
+}
