@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   salesops-dashboard:
-    image: salesops-dashboard:latest
-    build: .
+    # Utilizamos la imagen compilada automáticamente en GitHub (descargará la última versión)
+    image: ghcr.io/sergioamizmarketing/inversi-nracional-dashboard:latest
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -17,16 +17,17 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - proxy # Asumiendo que usas una red llamada proxy para Traefik
+      - traefik-public # Cambia "traefik-public" por el nombre real de tu red de Traefik
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.salesops.rule=Host(`dashboard.tudominio.com`)"
+        - "traefik.http.routers.salesops.rule=Host(`dashboard.tudominio.com`)" # CAMBIA TU DOMINIO
         - "traefik.http.routers.salesops.entrypoints=websecure"
         - "traefik.http.routers.salesops.tls=true"
-        - "traefik.http.routers.salesops.tls.certresolver=myresolver" # Ajusta al resolver de Traefik
+        - "traefik.http.routers.salesops.tls.certresolver=myresolver" # CAMBIA AL NOMBRE DE TU RESOLVER
         - "traefik.http.services.salesops.loadbalancer.server.port=3000"
 
 networks:
-  proxy:
+  # Esta es la red de Portainer/Traefik. Reemplaza "traefik-public" por el nombre de tu red externa de Overlay
+  traefik-public:
     external: true
