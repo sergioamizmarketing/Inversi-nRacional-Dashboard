@@ -32,7 +32,7 @@ const SidebarItem = ({ icon: Icon, label, to, collapsed }: SidebarItemProps) => 
 };
 
 export const Sidebar = ({ navigations }: { navigations: any[] }) => {
-    const { sidebarOpen } = useStore();
+    const { sidebarOpen, user } = useStore();
 
     return (
         <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 p-6 flex flex-col gap-8 transition-all duration-300 z-40 fixed h-full lg:relative lg:translate-x-0`}>
@@ -47,7 +47,7 @@ export const Sidebar = ({ navigations }: { navigations: any[] }) => {
                 {navigations.map(nav => (
                     <SidebarItem key={nav.to} {...nav} collapsed={!sidebarOpen} />
                 ))}
-                {useStore.getState().user?.role === 'admin' && (
+                {user?.role === 'admin' && (
                     <>
                         <SidebarItem
                             icon={ShieldCheck}
