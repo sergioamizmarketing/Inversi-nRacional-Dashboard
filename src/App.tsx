@@ -100,10 +100,20 @@ export default function App() {
         setConnection(data.connection);
         setShowWizard(false);
       } else {
-        setShowWizard(true);
+        if (localStorage.getItem('ghl_test_mode') === 'true') {
+          setConnection({ id: 'test-conn', location_id: 'test-loc' });
+          setShowWizard(false);
+        } else {
+          setShowWizard(true);
+        }
       }
     } catch (err) {
-      setShowWizard(true);
+      if (localStorage.getItem('ghl_test_mode') === 'true') {
+        setConnection({ id: 'test-conn', location_id: 'test-loc' });
+        setShowWizard(false);
+      } else {
+        setShowWizard(true);
+      }
     }
   };
 
@@ -144,6 +154,7 @@ export default function App() {
           </div>
 
           <button onClick={() => {
+            localStorage.setItem('ghl_test_mode', 'true');
             setConnection({ id: 'test-conn', location_id: 'test-loc' });
             setShowWizard(false);
           }} className="w-full px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all">

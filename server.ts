@@ -79,9 +79,15 @@ app.put("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
 
 app.get("/api/crm/status", async (req, res) => {
   try {
-    const { data } = await supabase.from('ghl_connections').select('*').maybeSingle();
-    if (data) {
-      res.json({ connected: true, connection: data });
+    const { data, error } = await supabase.from('ghl_connections').select('*').limit(1);
+
+    if (error) {
+      console.error("Supabase Error tracking connection:", error);
+      return res.status(500).json({ connected: false, error: error.message });
+    }
+
+    if (data && data.length > 0) {
+      res.json({ connected: true, connection: data[0] });
     } else {
       res.json({ connected: false });
     }
