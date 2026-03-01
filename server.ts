@@ -72,12 +72,19 @@ app.get("/api/crm/oauth/callback", async (req, res) => {
   const { code } = req.query;
 
   try {
-    const response = await axios.post("https://marketplace.gohighlevel.com/oauth/token", {
-      client_id: process.env.GHL_CLIENT_ID,
-      client_secret: process.env.GHL_CLIENT_SECRET,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: `${process.env.APP_URL}/api/crm/oauth/callback`,
+    const encodedParams = new URLSearchParams();
+    encodedParams.append('client_id', process.env.GHL_CLIENT_ID!);
+    encodedParams.append('client_secret', process.env.GHL_CLIENT_SECRET!);
+    encodedParams.append('grant_type', 'authorization_code');
+    encodedParams.append('code', code as string);
+    encodedParams.append('user_type', 'Location');
+    encodedParams.append('redirect_uri', `${process.env.APP_URL}/api/crm/oauth/callback`);
+
+    const response = await axios.post("https://services.leadconnectorhq.com/oauth/token", encodedParams, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      }
     });
 
     const { access_token, refresh_token, expires_in, locationId, scope } = response.data;
@@ -103,8 +110,9 @@ app.get("/api/crm/oauth/callback", async (req, res) => {
       </html>
     `);
   } catch (error: any) {
-    console.error("OAuth Error:", error.response?.data || error.message);
-    res.status(500).send("Authentication failed");
+    const errorDetails = error.response?.data || error.message;
+    console.error("OAuth Error:", errorDetails);
+    res.status(500).send(`Authentication failed. Detalles del error de HighLevel: ${JSON.stringify(errorDetails)}`);
   }
 });
 
