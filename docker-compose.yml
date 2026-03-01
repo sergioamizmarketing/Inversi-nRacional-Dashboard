@@ -21,7 +21,7 @@ services:
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.salesops.rule=Host(`dashboard.tudominio.com`)" # CAMBIA TU DOMINIO
+        - "traefik.http.routers.salesops.rule=Host(`dashboard.sergiomars.com`)"
         - "traefik.http.routers.salesops.entrypoints=websecure"
         - "traefik.http.routers.salesops.tls=true"
         - "traefik.http.routers.salesops.tls.certresolver=myresolver" # CAMBIA AL NOMBRE DE TU RESOLVER
