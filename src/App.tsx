@@ -109,15 +109,32 @@ export default function App() {
 
   if (showWizard) return (
     <div className="h-screen flex items-center justify-center text-center p-6">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-100 dark:border-slate-700">
+        <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+          <GitBranch className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+        </div>
         <h2 className="text-2xl font-bold mb-4">Conectar CRM</h2>
-        <p className="mb-6 text-slate-500">Conecta tu cuenta de GHL o pulsa bypass para continuar en modo offline (test)</p>
-        <button onClick={() => {
-          setConnection({ id: 'test-conn', location_id: 'test-loc' });
-          setShowWizard(false);
-        }} className="w-full px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold">
-          Autoconectar (Bypass)
-        </button>
+        <p className="mb-6 text-slate-500 dark:text-slate-400">Vincular tu cuenta de GoHighLevel para comenzar a sincronizar métricas en tiempo real.</p>
+
+        <div className="space-y-3">
+          <a href="/api/crm/oauth/start" className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-blue-900/20 transition-all">
+            <Target className="w-5 h-5" />
+            Conectar con GoHighLevel
+          </a>
+
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">o usar versión demo</span>
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+          </div>
+
+          <button onClick={() => {
+            setConnection({ id: 'test-conn', location_id: 'test-loc' });
+            setShowWizard(false);
+          }} className="w-full px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all">
+            Continuar sin conectar (Modo Prueba)
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -145,8 +162,16 @@ export default function App() {
               <Route path="/targets" element={<Targets />} />
               <Route path="/copilot" element={<Copilot />} />
               <Route path="/settings" element={
-                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 text-center">
-                  Ajustes de Plataforma (Próximamente)
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 dark:border-slate-700 text-center max-w-md mx-auto mt-12 shadow-xl">
+                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <Settings className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold mb-4">Ajustes de Integración</h2>
+                  <p className="text-slate-500 dark:text-slate-400 mb-8">Administra tus conexiones a fuentes de datos y CRM.</p>
+                  <a href="/api/crm/oauth/start" className="inline-flex items-center justify-center gap-2 w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-blue-900/20 transition-all">
+                    <Target className="w-5 h-5" />
+                    Vincular / Actualizar GoHighLevel
+                  </a>
                 </div>
               } />
               <Route path="*" element={<Navigate to="/overview" replace />} />
