@@ -25,6 +25,9 @@ import { Pipeline } from './features/Pipeline';
 import { Funnel } from './features/Funnel';
 import { Targets } from './features/Targets';
 import { Copilot } from './features/Copilot';
+import { Auth } from './features/auth/Auth';
+import { PendingApproval } from './features/auth/PendingApproval';
+import { AdminUsers } from './features/AdminUsers';
 
 const navigations = [
   { icon: LayoutDashboard, label: 'Resumen', to: '/overview' },
@@ -74,7 +77,18 @@ export default function App() {
 
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
+    if (session?.user) {
+      // Fetch user profile to get their role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      setUser({ ...session.user, role: profile?.role || 'pending', profile });
+    } else {
+      setUser(null);
+    }
     setLoading(false);
   };
 
@@ -101,11 +115,11 @@ export default function App() {
   );
 
   if (!user) return (
-    <div className="h-screen flex items-center justify-center">
-      <button onClick={() => setUser({ id: 'admin-bypass', email: 'admin@local.com', role: 'admin' })} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold">
-        By-pass Login (Modo Demo)
-      </button>
-    </div>
+    <Auth />
+  );
+
+  if (user.role === 'pending') return (
+    <PendingApproval />
   );
 
   if (showWizard) return (
@@ -162,6 +176,7 @@ export default function App() {
               <Route path="/funnel" element={<Funnel />} />
               <Route path="/targets" element={<Targets />} />
               <Route path="/copilot" element={<Copilot />} />
+              {user.role === 'admin' && <Route path="/admin/users" element={<AdminUsers />} />}
               <Route path="/settings" element={
                 <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 dark:border-slate-700 text-center max-w-md mx-auto mt-12 shadow-xl">
                   <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">

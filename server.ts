@@ -31,6 +31,50 @@ app.get("/api/config", (req, res) => {
   });
 });
 
+// --- Admin User Management Routes ---
+
+// Middleware to verify Admin JWT
+const requireAdmin = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: "Missing token" });
+
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: "Invalid token" });
+
+  // Check if user is an admin in profiles (using service key bypasses RLS)
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profile?.role !== 'admin') return res.status(403).json({ error: "Forbidden: Admins only" });
+
+  req.user = user;
+  next();
+};
+
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const { data: profiles, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(profiles);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+  if (!['admin', 'manager', 'closer', 'viewer', 'pending'].includes(role)) {
+    return res.status(400).json({ error: "Invalid role" });
+  }
+
+  try {
+    const { data, error } = await supabase.from('profiles').update({ role }).eq('id', id).select().single();
+    if (error) throw error;
+    res.json({ success: true, user: data });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- GHL Internal Integration & OAuth Routes ---
 
 app.get("/api/crm/status", async (req, res) => {

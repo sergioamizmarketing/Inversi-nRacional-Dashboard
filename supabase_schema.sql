@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
-  role TEXT DEFAULT 'viewer' CHECK (role IN ('admin', 'manager', 'closer', 'viewer')),
+  role TEXT DEFAULT 'pending' CHECK (role IN ('admin', 'manager', 'closer', 'viewer', 'pending')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -150,7 +150,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'admin');
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'pending');
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -160,6 +160,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 CREATE POLICY "Admins can do everything" ON profiles FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 
 -- Enable RLS on all tables
 ALTER TABLE ghl_connections ENABLE ROW LEVEL SECURITY;
