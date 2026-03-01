@@ -61,7 +61,7 @@ app.post("/api/crm/init-internal", async (req, res) => {
 app.get("/api/crm/oauth/start", (req, res) => {
   const clientId = process.env.GHL_CLIENT_ID;
   const redirectUri = `${process.env.APP_URL}/api/crm/oauth/callback`;
-  const scope = "opportunities.readonly opportunities.write contacts.readonly contacts.write users.readonly pipelines.readonly locations.readonly";
+  const scope = "opportunities.readonly opportunities.write contacts.readonly contacts.write users.readonly locations.readonly";
 
   const authUrl = `https://marketplace.gohighlevel.com/oauth/chooselocation?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
 
