@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { supabase } from '../../lib/supabase';
-import { XCircle, TrendingUp } from 'lucide-react';
+import { XCircle, TrendingUp, ShieldCheck, Settings } from 'lucide-react';
 
 interface SidebarItemProps {
     icon: any;
@@ -19,8 +19,8 @@ const SidebarItem = ({ icon: Icon, label, to, collapsed }: SidebarItemProps) => 
         <Link
             to={to}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 relative overflow-hidden ${active
-                    ? 'bg-indigo-600/90 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 backdrop-blur-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-indigo-600/90 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 backdrop-blur-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white'
                 } ${collapsed ? 'justify-center px-0' : ''}`}
             title={collapsed ? label : ''}
         >
@@ -47,6 +47,22 @@ export const Sidebar = ({ navigations }: { navigations: any[] }) => {
                 {navigations.map(nav => (
                     <SidebarItem key={nav.to} {...nav} collapsed={!sidebarOpen} />
                 ))}
+                {useStore.getState().user?.role === 'admin' && (
+                    <>
+                        <SidebarItem
+                            icon={ShieldCheck}
+                            label="Gestión de Usuarios"
+                            to="/admin/users"
+                            collapsed={!sidebarOpen}
+                        />
+                        <SidebarItem
+                            icon={Settings}
+                            label="Ajustes de Integración"
+                            to="/settings"
+                            collapsed={!sidebarOpen}
+                        />
+                    </>
+                )}
             </nav>
 
             <div className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
