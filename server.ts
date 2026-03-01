@@ -33,6 +33,19 @@ app.get("/api/config", (req, res) => {
 
 // --- GHL Internal Integration & OAuth Routes ---
 
+app.get("/api/crm/status", async (req, res) => {
+  try {
+    const { data } = await supabase.from('ghl_connections').select('*').maybeSingle();
+    if (data) {
+      res.json({ connected: true, connection: data });
+    } else {
+      res.json({ connected: false });
+    }
+  } catch (error: any) {
+    res.status(500).json({ connected: false, error: error.message });
+  }
+});
+
 app.post("/api/crm/init-internal", async (req, res) => {
   const locationId = process.env.GHL_LOCATION_ID?.trim();
   const apiKey = process.env.GHL_API_KEY?.trim();

@@ -80,9 +80,10 @@ export default function App() {
 
   const fetchConnection = async () => {
     try {
-      const { data } = await supabase.from('ghl_connections').select('*').maybeSingle();
-      if (data) {
-        setConnection(data);
+      const res = await fetch('/api/crm/status');
+      const data = await res.json();
+      if (data.connected && data.connection) {
+        setConnection(data.connection);
         setShowWizard(false);
       } else {
         setShowWizard(true);
