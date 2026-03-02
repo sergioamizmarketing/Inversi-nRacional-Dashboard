@@ -1086,8 +1086,25 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    // Serve static files with 1-year cache on assets
+    app.use(express.static(path.join(__dirname, "dist"), {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else {
+          // Keep normal cache for JS/CSS with hash filenames
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+        }
+      }
+    }));
+
+    // Always serve fresh index.html for unknown routes (SPA)
     app.get("*", (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
