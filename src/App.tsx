@@ -57,16 +57,23 @@ export default function App() {
   useEffect(() => {
     checkUser();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        // Fetch user profile to get their role, otherwise the change event overwrites the admin role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+      try {
+        if (session?.user) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        setUser({ ...session.user, role: profile?.role || 'pending', profile });
-      } else {
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.error("Profile fetch error in auth listener:", profileError);
+          }
+          setUser({ ...session.user, role: profile?.role || 'pending', profile });
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err);
         setUser(null);
       }
     });
@@ -97,20 +104,31 @@ export default function App() {
   }, []);
 
   const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      // Fetch user profile to get their role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
 
-      setUser({ ...session.user, role: profile?.role || 'pending', profile });
-    } else {
+      if (session?.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error("Profile fetch error:", profileError);
+        }
+
+        setUser({ ...session.user, role: profile?.role || 'pending', profile });
+      } else {
+        setUser(null);
+      }
+    } catch (err) {
+      console.error("App boot auth check failed:", err);
       setUser(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchConnection = async () => {
