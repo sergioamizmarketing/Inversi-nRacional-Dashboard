@@ -10,11 +10,13 @@ export function Auth() {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
+        setSuccess(null);
 
         try {
             const timeoutPromise = new Promise<{ error: any }>((_, reject) =>
@@ -31,7 +33,7 @@ export function Auth() {
                 ]) as any;
                 if (error) throw error;
             } else {
-                const { error } = await Promise.race([
+                const { data, error } = await Promise.race([
                     supabase.auth.signUp({
                         email,
                         password,
@@ -43,7 +45,14 @@ export function Auth() {
                     }),
                     timeoutPromise
                 ]) as any;
+
                 if (error) throw error;
+
+                if (data?.user && !data?.session) {
+                    setSuccess('¡Registro completado! Por favor, revisa la bandeja de entrada de tu correo para confirmar tu cuenta y habilitar el acceso.');
+                    setLoading(false);
+                    return; // Prevent error clearing
+                }
             }
         } catch (err: any) {
             let errorMsg = err.message || '';
@@ -141,8 +150,14 @@ export function Auth() {
                     </div>
 
                     {error && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm text-center">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm text-center border border-red-200 dark:border-red-800">
                             {error}
+                        </motion.div>
+                    )}
+
+                    {success && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-sm text-center border border-emerald-200 dark:border-emerald-800 font-medium">
+                            {success}
                         </motion.div>
                     )}
 

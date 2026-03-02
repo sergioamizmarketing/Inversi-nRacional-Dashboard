@@ -51,6 +51,24 @@ const requireAdmin = async (req, res, next) => {
 
 app.get("/api/admin/users", requireAdmin, async (req, res) => {
   try {
+    // 1. Fetch from Auth API (Service Role only) to self-heal missing profiles
+    const { data: authData } = await supabase.auth.admin.listUsers();
+
+    if (authData?.users) {
+      const profilesToSync = authData.users.map(u => ({
+        id: u.id,
+        email: u.email,
+        full_name: u.user_metadata?.full_name || 'Nuevo Usuario',
+        role: 'pending',
+        created_at: u.created_at
+      }));
+
+      if (profilesToSync.length > 0) {
+        await supabase.from('profiles').upsert(profilesToSync, { onConflict: 'id', ignoreDuplicates: true });
+      }
+    }
+
+    // 2. Fetch all active profiles for the dashboard
     const { data: profiles, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     res.json(profiles);
