@@ -142,8 +142,13 @@ CREATE TABLE IF NOT EXISTS targets (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS Policies (Admin only for now)
+-- RLS Policies
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own profile"
+ON profiles FOR SELECT
+TO authenticated
+USING (auth.uid() = id);
 
 -- Trigger to create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

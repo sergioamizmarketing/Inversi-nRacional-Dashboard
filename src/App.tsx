@@ -105,15 +105,19 @@ export default function App() {
 
   const checkUser = async () => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase timeout timeout")), 8000));
+
+      const { data: { session }, error: sessionError } = await Promise.race([
+        supabase.auth.getSession(),
+        timeoutPromise
+      ]) as any;
       if (sessionError) throw sessionError;
 
       if (session?.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        const { data: profile, error: profileError } = await Promise.race([
+          supabase.from('profiles').select('*').eq('id', session.user.id).single(),
+          timeoutPromise
+        ]) as any;
 
         if (profileError && profileError.code !== 'PGRST116') {
           console.error("Profile fetch error:", profileError);
