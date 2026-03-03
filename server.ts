@@ -521,23 +521,43 @@ app.post("/api/crm/sync", async (req, res) => {
           const statusesToFetch = ["open", "won", "lost", "abandoned", "all"]; // "all" sometimes works, but explicit fallback is better
 
           for (const status of statusesToFetch) {
-            try {
-              const oppRes = await ghl.post("/opportunities/search", {
-                locationId,
-                status,
-                limit: 1000 // Safe bulk limit per status
-              });
+            let page = 1;
+            let hasMore = true;
+            let safetyCounter = 0;
 
-              if (oppRes.data.opportunities && oppRes.data.opportunities.length > 0) {
-                console.log(`Found ${oppRes.data.opportunities.length} '${status}' opportunities.`);
+            while (hasMore && safetyCounter < 100) { // Limit to 10k opps per status for safety
+              safetyCounter++;
+              try {
+                const oppRes = await ghl.post("/opportunities/search", {
+                  locationId,
+                  status,
+                  limit: 100, // Maximum per page request
+                  page: page,
+                  skip: (page - 1) * 100
+                });
 
-                // Merge without duplicates (in case 'all' worked and overlapped with explicit ones)
-                const existingIds = new Set(allOpps.map(o => o.id));
-                const newOpps = oppRes.data.opportunities.filter((o: any) => !existingIds.has(o.id));
-                allOpps = [...allOpps, ...newOpps];
+                const fetchedOpps = oppRes.data.opportunities || [];
+                if (fetchedOpps.length > 0) {
+                  console.log(`Found ${fetchedOpps.length} '${status}' opportunities on page ${page}.`);
+
+                  // Merge without duplicates
+                  const existingIds = new Set(allOpps.map(o => o.id));
+                  const newOpps = fetchedOpps.filter((o: any) => !existingIds.has(o.id));
+                  allOpps = [...allOpps, ...newOpps];
+
+                  // Check if there might be more on the next page
+                  if (fetchedOpps.length === 100) {
+                    page++;
+                  } else {
+                    hasMore = false; // Less than 100 means we reached the end
+                  }
+                } else {
+                  hasMore = false; // Zero results means we're done
+                }
+              } catch (statusErr: any) {
+                console.warn(`V2 Search Error for status '${status}' on page ${page}:`, statusErr.response?.data || statusErr.message);
+                hasMore = false; // Break loop on error
               }
-            } catch (statusErr: any) {
-              console.warn(`V2 Search Error for status '${status}':`, statusErr.response?.data || statusErr.message);
             }
           }
 
