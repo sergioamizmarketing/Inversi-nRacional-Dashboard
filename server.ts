@@ -719,6 +719,52 @@ app.post("/api/crm/sync", async (req, res) => {
   }
 });
 
+// --- REAL-TIME WEBHOOK RECEIVER ---
+app.post("/api/ghl/webhook", async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log("Received GHL Webhook:", payload.type || "Unknown Type", "for location:", payload.locationId || "Unknown Location");
+
+    // We only process it if it looks like an Opportunity or Pipeline update
+    if (payload.type === 'Opportunity' || payload.pipelineId) {
+      if (!payload.id || !payload.locationId) {
+        return res.status(400).json({ error: "Missing id or locationId in webhook payload" });
+      }
+
+      const oppData = {
+        id: payload.id,
+        location_id: payload.locationId,
+        contact_id: payload.contactId || null,
+        pipeline_id: payload.pipelineId,
+        stage_id: payload.pipelineStageId || payload.stageId || null,
+        owner_user_id: payload.assignedTo || null,
+        name: payload.name || "Webhook Opportunity",
+        status: (payload.status || "open").toLowerCase(),
+        value: payload.monetaryValue || payload.value || 0,
+        currency: "EUR",
+        raw: payload,
+        created_at: payload.dateAdded || new Date().toISOString(),
+        updated_at: payload.dateUpdated || new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from("opportunities").upsert([oppData]);
+      if (error) {
+        console.error("Webhook Upsert Error:", error.message);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log(`Successfully synced opportunity via webhook: ${payload.id}`);
+      return res.json({ success: true, message: "Opportunity upserted via webhook" });
+    }
+
+    // Acknowledge other webhook types safely
+    res.json({ success: true, message: "Webhook received but ignored (not an opportunity)" });
+  } catch (err: any) {
+    console.error("Webhook Internal Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/metrics/overview", async (req, res) => {
   const { locationId, startDate, endDate, pipelineId, userId, source } = req.query;
 
