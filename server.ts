@@ -515,58 +515,36 @@ app.post("/api/crm/sync", async (req, res) => {
             allOpps = [...allOpps, ...oppRes.data.opportunities];
           }
         }
-      } else {
-        // V2: Use search endpoint (POST)
+        // V2: Use search endpoint (POST) iterating through all specific statuses
         console.log(`Fetching V2 opportunities for ${locationId}...`);
         try {
-          // Strategy 1: Global search for the location
-          const oppRes = await ghl.post("/opportunities/search", {
-            locationId,
-            limit: 1000
-          });
+          const statusesToFetch = ["open", "won", "lost", "abandoned", "all"]; // "all" sometimes works, but explicit fallback is better
 
-          allOpps = oppRes.data.opportunities || [];
-          console.log(`V2 Global Search found ${allOpps.length} opportunities.`);
+          for (const status of statusesToFetch) {
+            try {
+              const oppRes = await ghl.post("/opportunities/search", {
+                locationId,
+                status,
+                limit: 1000 // Safe bulk limit per status
+              });
 
-          // Strategy 2: If global search returns 0, try fetching per pipeline
-          if (allOpps.length === 0) {
-            console.log("Global search returned 0, trying per-pipeline fetch...");
-            const pipeRes = await ghl.get("/opportunities/pipelines", { params: { locationId } });
-            const pipelines = pipeRes.data.pipelines || [];
+              if (oppRes.data.opportunities && oppRes.data.opportunities.length > 0) {
+                console.log(`Found ${oppRes.data.opportunities.length} '${status}' opportunities.`);
 
-            for (const pipe of pipelines) {
-              console.log(`Fetching opps for pipeline ${pipe.id}...`);
-              try {
-                const pOppRes = await ghl.post("/opportunities/search", {
-                  locationId,
-                  pipelineId: pipe.id,
-                  limit: 1000
-                });
-                if (pOppRes.data.opportunities && pOppRes.data.opportunities.length > 0) {
-                  allOpps = [...allOpps, ...pOppRes.data.opportunities];
-                }
-              } catch (pErr: any) {
-                console.warn(`Failed to fetch for pipeline ${pipe.id}:`, pErr.message);
+                // Merge without duplicates (in case 'all' worked and overlapped with explicit ones)
+                const existingIds = new Set(allOpps.map(o => o.id));
+                const newOpps = oppRes.data.opportunities.filter((o: any) => !existingIds.has(o.id));
+                allOpps = [...allOpps, ...newOpps];
               }
+            } catch (statusErr: any) {
+              console.warn(`V2 Search Error for status '${status}':`, statusErr.response?.data || statusErr.message);
             }
-            console.log(`Per-pipeline fetch found ${allOpps.length} total opportunities.`);
           }
 
-          // Strategy 3: If still 0, try fetching specifically for 'won' status as a last resort
-          if (allOpps.length === 0) {
-            console.log("Still 0, trying status-specific search for 'won'...");
-            const wonRes = await ghl.post("/opportunities/search", {
-              locationId,
-              status: "won",
-              limit: 1000
-            });
-            if (wonRes.data.opportunities) {
-              allOpps = [...allOpps, ...wonRes.data.opportunities];
-            }
-            console.log(`Status-specific search found ${allOpps.length} opportunities.`);
-          }
+          console.log(`V2 Search completed. Total unique opportunities found: ${allOpps.length}`);
+
         } catch (searchError: any) {
-          console.error("V2 Search Error:", searchError.response?.data || searchError.message);
+          console.error("V2 Search Fatal Error:", searchError.response?.data || searchError.message);
           throw searchError;
         }
       }
@@ -706,6 +684,30 @@ app.post("/api/crm/sync", async (req, res) => {
         console.error("Supabase Upsert Error:", JSON.stringify(upsertError, null, 2));
         throw new Error(`Supabase Upsert failed: ${upsertError.message} (${upsertError.code})`);
       }
+
+      // Safe pruning: Delete any opportunity in this location that is no longer in GHL
+      // We limit this to syncs under 3000 items to avoid deleting valid data if GHL pagination clipped the results
+      if (upsertData.length < 3000) {
+        try {
+          const { data: existingOpps } = await supabase.from('opportunities').select('id').eq('location_id', locationId);
+          if (existingOpps) {
+            const validSet = new Set(upsertData.map(o => o.id));
+            const idsToDelete = existingOpps.map(o => o.id).filter(id => !validSet.has(id));
+
+            if (idsToDelete.length > 0) {
+              console.log(`Pruning ${idsToDelete.length} orphaned opportunities from Supabase...`);
+              // Delete in chunks of 200 to avoid HTTP URI Too Long errors
+              for (let i = 0; i < idsToDelete.length; i += 200) {
+                const chunk = idsToDelete.slice(i, i + 200);
+                await supabase.from('opportunities').delete().in('id', chunk);
+              }
+            }
+          }
+        } catch (pruneErr: any) {
+          console.warn("Non-fatal error during opportunity pruning:", pruneErr.message);
+        }
+      }
+
     } else {
       console.log("No opportunities found to sync.");
     }
