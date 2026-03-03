@@ -29,7 +29,11 @@ export const Pipeline = () => {
                 const pipeOpps = (Array.isArray(opportunities) ? opportunities : []).filter((o: any) => o.pipeline_id === pipeline.id);
                 const stages = pipeline.stages || [];
 
-                let totalPipelineValue = 0;
+                const validStageIds = new Set(stages.map((s: any) => s.id));
+                const orphanOpps = pipeOpps.filter((o: any) => o.status === 'open' && !validStageIds.has(o.stage_id));
+                const orphanValue = orphanOpps.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
+
+                let totalPipelineValue = orphanValue;
 
                 const stageData = stages.map((stage: any, index: number) => {
                     const stageOpps = pipeOpps.filter((o: any) => o.stage_id === stage.id && o.status === 'open');
@@ -125,6 +129,34 @@ export const Pipeline = () => {
 
                                         </div>
                                     ))}
+
+                                    {/* ORPHAN OPPORTUNITIES CATCH-ALL */}
+                                    {orphanOpps.length > 0 && (
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-900/20 hover:bg-rose-50 dark:hover:bg-rose-900/40 transition-all group gap-4 mt-6">
+                                            <div className="flex items-center gap-4 min-w-[200px]">
+                                                <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-800 flex items-center justify-center font-bold text-rose-500 dark:text-rose-400">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-rose-700 dark:text-rose-300">Etapa Desconocida / Borrada</div>
+                                                    <div className="text-sm text-rose-600 dark:text-rose-400">{orphanOpps.length} tratos huérfanos</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 md:text-center">
+                                                <div className="font-black text-lg text-rose-700 dark:text-rose-300">€{orphanValue.toLocaleString()}</div>
+                                                <div className="text-xs text-rose-500/70 font-medium">
+                                                    {totalPipelineValue > 0 ? ((orphanValue / totalPipelineValue) * 100).toFixed(1) : 0}% del pipeline
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-4 justify-between md:justify-end min-w-[250px]">
+                                                <p className="text-xs text-rose-600 dark:text-rose-400 text-right">
+                                                    Estos tratos están activos en GHL pero su "Etapa" no existe en los ajustes del CRM actuales.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

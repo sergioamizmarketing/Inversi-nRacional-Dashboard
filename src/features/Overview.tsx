@@ -4,7 +4,7 @@ import { Card } from '../components/ui/Card';
 import { ChartSkeleton, EmptyState } from '../components/ui/Indicators';
 import { DollarSign, Users, CheckCircle, GitBranch, Target, AlertTriangle } from 'lucide-react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Cell
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Cell, ComposedChart, Legend
 } from 'recharts';
 import { format, differenceInDays, endOfMonth, startOfMonth } from 'date-fns';
 
@@ -28,7 +28,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
 };
 
 export const Overview = () => {
-    const { metrics, opportunities, totalOpps } = useStore();
+    const { metrics, opportunities, totalOpps, pipelines } = useStore();
 
     const chartData = useMemo(() => {
         if (!opportunities || opportunities.length === 0) return { trendData: [], distributionData: [], pacingData: null };
@@ -78,8 +78,19 @@ export const Overview = () => {
             isOnTrack: pacingPercent >= 100
         };
 
-        return { trendData, distributionData, pacingData };
-    }, [opportunities, metrics]);
+        // Pipeline Distribution (Combined Count and Value)
+        const pipelineDistributionData = (Array.isArray(pipelines) ? pipelines : []).map(p => {
+            const pipeOpps = safeOpps.filter(o => o.pipeline_id === p.id && o.status === 'open');
+            const totalValue = pipeOpps.reduce((sum, o) => sum + Number(o.value || 0), 0);
+            return {
+                name: p.name,
+                Oportunidades: pipeOpps.length,
+                Valor: totalValue
+            };
+        }).filter(d => d.Oportunidades > 0);
+
+        return { trendData, distributionData, pacingData, pipelineDistributionData };
+    }, [opportunities, metrics, pipelines]);
 
     if (!metrics) return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-pulse">
@@ -91,7 +102,7 @@ export const Overview = () => {
         return <EmptyState title="Sin datos comerciales" description="No hemos encontrado oportunidades en el rango de fechas seleccionado. Cambia los filtros o sincroniza con tu CRM." />;
     }
 
-    const { trendData, distributionData, pacingData } = chartData;
+    const { trendData, distributionData, pacingData, pipelineDistributionData } = chartData;
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -183,6 +194,27 @@ export const Overview = () => {
                             </ResponsiveContainer>
                         ) : <ChartSkeleton />}
                     </div>
+                </div>
+            </div>
+
+            {/* Pipeline Distribution Chart */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
+                <h3 className="font-bold text-slate-900 dark:text-white mb-6 text-lg">Distribución por Pipeline (Oportunidades Abiertas)</h3>
+                <div className="h-80 min-h-[320px]">
+                    {pipelineDistributionData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={pipelineDistributionData} margin={{ top: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
+                                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(val) => `€${val / 1000}k`} />
+                                <Tooltip cursor={{ fill: 'transparent' }} content={<CustomTooltip />} />
+                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                <Bar yAxisId="left" dataKey="Oportunidades" name="Num. Tratos" barSize={32} fill="#6366f1" radius={[4, 4, 0, 0]} />
+                                <Line yAxisId="right" type="monotone" dataKey="Valor" name="Valor (€)" stroke="#10b981" strokeWidth={3} dot={{ r: 6, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }} />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    ) : <ChartSkeleton />}
                 </div>
             </div>
         </div>

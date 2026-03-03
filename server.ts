@@ -785,6 +785,17 @@ app.post("/api/ghl/webhook", async (req, res) => {
   }
 });
 
+// --- TEMP DEBUG ENDPOINT ---
+app.get("/api/debug/dump", async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('opportunities').select('name, status, stage_id, pipeline_id, id, value').ilike('name', '%test%');
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/metrics/overview", async (req, res) => {
   const { locationId, startDate, endDate, pipelineId, userId, source } = req.query;
 
