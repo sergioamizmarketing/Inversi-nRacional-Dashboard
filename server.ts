@@ -811,17 +811,31 @@ app.get("/api/crm/debug-ghl-direct", async (req, res) => {
 
     const ghl = axios.create({ baseURL, headers });
 
-    // Explicitly query exactly 'open' status to test what GHL is sending us
-    const oppRes = await ghl.post("/opportunities/search", {
+    // Query 1: Exactly 'open' status
+    const oppResOpen = await ghl.post("/opportunities/search", {
       locationId: locationId,
       status: "open",
       limit: 100
     });
 
-    const results = oppRes.data.opportunities || [];
+    // Query 2: All statuses (omit status filter)
+    const oppResAll = await ghl.post("/opportunities/search", {
+      locationId: locationId,
+      limit: 100
+    });
+
+    const resultsOpen = oppResOpen.data.opportunities || [];
+    const resultsAll = oppResAll.data.opportunities || [];
+
+    // Find what is structurally missing from 'open' but present in 'all'
+    const openIds = new Set(resultsOpen.map((o: any) => o.id));
+    const onlyInAll = resultsAll.filter((o: any) => !openIds.has(o.id));
+
     res.json({
-      totalCount: results.length,
-      names: results.map((o: any) => `${o.name} (Stage: ${o.pipelineStageId || o.stageId})`)
+      totalCountOpen: resultsOpen.length,
+      totalCountAll: resultsAll.length,
+      namesOpen: resultsOpen.map((o: any) => `${o.name} (Stage: ${o.pipelineStageId || o.stageId})`),
+      namesMissingFromOpen: onlyInAll.map((o: any) => `${o.name} (Status in API: ${o.status}) (Stage: ${o.pipelineStageId})`)
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed API call" });
