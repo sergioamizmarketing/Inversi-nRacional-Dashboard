@@ -773,6 +773,11 @@ app.post("/api/ghl/webhook", async (req, res) => {
         return res.status(500).json({ error: error.message });
       }
 
+      // Bump the connection timestamp so the Dashboard "Sincronizado" clock updates
+      await supabase.from("ghl_connection")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("location_id", payload.locationId);
+
       console.log(`Successfully synced opportunity via webhook: ${payload.id}`);
       return res.json({ success: true, message: "Opportunity upserted via webhook" });
     }

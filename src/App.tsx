@@ -98,7 +98,40 @@ export default function App() {
       fetchMetadata();
       fetchOpportunities();
     }
-  }, [connection, filters, fetchMetrics, fetchMetadata, fetchOpportunities]);
+  }, [connection?.id, filters.startDate, filters.endDate, filters.pipelineId, filters.userId, fetchMetrics, fetchMetadata, fetchOpportunities]);
+
+  // Real-time Database Listener
+  useEffect(() => {
+    if (!connection) return;
+
+    const channel = supabase.channel(`dashboard_realtime_${connection.location_id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'opportunities', filter: `location_id=eq.${connection.location_id}` },
+        (payload) => {
+          console.log("Realtime: Opportunities table changed", payload);
+          useStore.getState().fetchOpportunities();
+          useStore.getState().fetchMetrics();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ghl_connection', filter: `location_id=eq.${connection.location_id}` },
+        (payload) => {
+          if (payload.new) {
+            console.log("Realtime: Connection sync updated", payload.new);
+            setConnection(payload.new);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("Supabase Realtime Status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [connection?.location_id, setConnection]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
