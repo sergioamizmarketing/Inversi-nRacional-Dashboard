@@ -1,23 +1,24 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../store/useStore';
-import { Card } from '../components/ui/Card';
 import { ChartSkeleton, EmptyState } from '../components/ui/Indicators';
-import { DollarSign, Users, CheckCircle, GitBranch, Target, AlertTriangle } from 'lucide-react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Cell, ComposedChart, Legend
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Label
 } from 'recharts';
-import { format, differenceInDays, endOfMonth, startOfMonth } from 'date-fns';
 
-const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
+// Colors based on the screenshot (GHL standard)
+const COLORS = ['#38bdf8', '#fbbf24', '#a855f7', '#818cf8', '#6366f1', '#4ade80', '#f472b6', '#f87171'];
+const STATUS_COLORS = { open: '#38bdf8', won: '#4ade80', lost: '#f87171', abandoned: '#94a3b8' };
+
+const CustomTooltip = ({ active, payload, isCurrency = false }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-4 rounded-xl shadow-xl border border-white/50 dark:border-slate-700/50">
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold mb-2 tracking-wider uppercase">{label}</p>
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-3 rounded-xl shadow-xl border border-white/50 dark:border-slate-700/50 text-sm z-50">
                 {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-3 mb-1">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="font-semibold text-slate-900 dark:text-white">
-                            {entry.name}: {isCurrency ? '€' : ''}{Number(entry.value).toLocaleString()}{isCurrency ? '' : (entry.name.includes('%') ? '%' : '')}
+                    <div key={index} className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || entry.payload?.fill || "#000" }} />
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {entry.name}: {isCurrency ? '€' : ''}{Number(entry.value).toLocaleString()}
                         </span>
                     </div>
                 ))}
@@ -28,195 +29,193 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
 };
 
 export const Overview = () => {
-    const { metrics, opportunities, totalOpps, pipelines } = useStore();
+    const { metrics, opportunities, pipelines, filters } = useStore();
 
     const chartData = useMemo(() => {
-        if (!opportunities || opportunities.length === 0) return { trendData: [], distributionData: [], pacingData: null, pipelineDistributionData: [] };
+        if (!opportunities || opportunities.length === 0) return null;
 
-        const safeOpps = [...opportunities]
-            .filter(o => o.created_at)
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        const safeOpps = [...opportunities].filter(o => o.created_at);
 
-        const trendData = safeOpps.reduce((acc: any[], opp: any) => {
-            try {
-                const date = format(new Date(opp.created_at), 'dd/MM');
-                const existing = acc.find(d => d.name === date);
-                if (existing) {
-                    if (opp.status === 'won') existing.value += Number(opp.value || 0);
-                } else {
-                    acc.push({ name: date, value: opp.status === 'won' ? Number(opp.value || 0) : 0 });
-                }
-            } catch (e) { }
-            return acc;
-        }, []).slice(-14);
-
-        const distributionData = [
-            { name: 'Abiertas', value: safeOpps.filter(o => o.status === 'open').length, color: '#6366f1' },
-            { name: 'Ganadas', value: safeOpps.filter(o => o.status === 'won').length, color: '#10b981' },
-            { name: 'Perdidas', value: safeOpps.filter(o => o.status === 'lost').length, color: '#ef4444' },
-            { name: 'Abandonadas', value: safeOpps.filter(o => o.status === 'abandoned').length, color: '#94a3b8' },
+        // 1. Opportunity Status -> count
+        const openCount = safeOpps.filter(o => o.status === 'open').length;
+        const wonCount = safeOpps.filter(o => o.status === 'won').length;
+        const statusData = [
+            { name: 'Open', value: openCount, fill: STATUS_COLORS.open },
+            { name: 'Won', value: wonCount, fill: STATUS_COLORS.won }
         ];
 
-        // Pacing Calculation
-        const today = new Date();
-        const start = startOfMonth(today);
-        const end = endOfMonth(today);
-        const totalDaysInMonth = differenceInDays(end, start) + 1;
-        const daysPassedInMonth = differenceInDays(today, start) + 1;
+        // 2. Opportunity Value -> sum
+        const openValue = safeOpps.filter(o => o.status === 'open').reduce((sum, o) => sum + Number(o.value || 0), 0);
+        const wonValue = safeOpps.filter(o => o.status === 'won').reduce((sum, o) => sum + Number(o.value || 0), 0);
+        const valueData = [
+            { name: 'Open', value: openValue, fill: STATUS_COLORS.open },
+            { name: 'Won', value: wonValue, fill: STATUS_COLORS.won }
+        ];
+        const totalRevenue = wonValue + openValue;
 
-        // Simulating a monthly target based on historical data or flat 500k for the example
-        const monthlyTarget = 500000;
-        const currentRevenue = metrics?.revenue || 0;
-        const targetPace = (monthlyTarget / totalDaysInMonth) * daysPassedInMonth;
-        const pacingPercent = (currentRevenue / targetPace) * 100;
+        // 3. Conversion Rate
+        const totalClosed = wonCount + safeOpps.filter(o => o.status === 'lost' || o.status === 'abandoned').length;
+        const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
 
-        const pacingData = {
-            target: monthlyTarget,
-            current: currentRevenue,
-            targetPace,
-            pacingPercent,
-            isOnTrack: pacingPercent >= 100
+        // 4 & 5. Funnel & Stage Distribution
+        // Find the active pipeline or first if none selected
+        const activePipelineId = filters.pipelineId || (pipelines.length > 0 ? pipelines[0].id : null);
+        const activePipeline = pipelines.find(p => p.id === activePipelineId);
+
+        const stageData: any[] = [];
+        let totalOpenInPipe = 0;
+
+        if (activePipeline && activePipeline.stages) {
+            const pipeOpps = safeOpps.filter(o => o.pipeline_id === activePipeline.id && o.status === 'open');
+            totalOpenInPipe = pipeOpps.length;
+
+            activePipeline.stages.forEach((stage: any, index: number) => {
+                const sOpps = pipeOpps.filter(o => o.stage_id === stage.id);
+                const sValue = sOpps.reduce((sum, o) => sum + Number(o.value || 0), 0);
+                if (sOpps.length > 0) {
+                    stageData.push({
+                        name: stage.name,
+                        count: sOpps.length,
+                        value: sValue,
+                        fill: COLORS[index % COLORS.length]
+                    });
+                }
+            });
+        }
+
+        return {
+            statusData,
+            totalStatus: openCount + wonCount,
+            valueData,
+            totalRevenue,
+            winRate,
+            wonValue,
+            stageData,
+            totalOpenInPipe
         };
 
-        // Pipeline Distribution (Combined Count and Value)
-        const pipelineDistributionData = (Array.isArray(pipelines) ? pipelines : []).map(p => {
-            const pipeOpps = safeOpps.filter(o => o.pipeline_id === p.id && o.status === 'open');
-            const totalValue = pipeOpps.reduce((sum, o) => sum + Number(o.value || 0), 0);
-            return {
-                name: p.name,
-                Oportunidades: pipeOpps.length,
-                Valor: totalValue
-            };
-        }).filter(d => d.Oportunidades > 0);
-
-        return { trendData, distributionData, pacingData, pipelineDistributionData };
-    }, [opportunities, metrics, pipelines]);
+    }, [opportunities, pipelines, filters.pipelineId]);
 
     if (!metrics) return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-pulse">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-40 bg-white/50 dark:bg-slate-800/50 rounded-2xl" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+            {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-64 bg-white/50 dark:bg-slate-800/50 rounded-2xl" />)}
         </div>
     );
 
-    if (opportunities.length === 0 && metrics?.totalOpps === 0) {
+    if (!chartData || opportunities.length === 0) {
         return <EmptyState title="Sin datos comerciales" description="No hemos encontrado oportunidades en el rango de fechas seleccionado. Cambia los filtros o sincroniza con tu CRM." />;
     }
 
-    const { trendData, distributionData, pacingData, pipelineDistributionData } = chartData;
+    const { statusData, totalStatus, valueData, totalRevenue, winRate, wonValue, stageData, totalOpenInPipe } = chartData;
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card title="Ingresos Totales" value={metrics.revenue || 0} isCurrency subValue="Ganado en periodo" icon={DollarSign} trend={metrics.revenue > 0 ? "up" : "down"} trendValue="+12%" />
-                <Card title="Oportunidades" value={metrics.totalOpps || 0} subValue="Leads totales" icon={Users} trend="up" trendValue="+5%" />
-                <Card title="Tasa de Cierre" value={`${(metrics.winRate || 0).toFixed(1)}`} subValue="Conversión final" icon={CheckCircle} trend="up" trendValue="+2.1%" />
-                <Card title="Valor Pipeline" value={metrics.pipelineValue || 0} isCurrency subValue="Pendiente de cierre" icon={GitBranch} />
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+
+            {/* Top Row: 3 Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* 1. Opportunity Status */}
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col items-center">
+                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-2 text-sm">Opportunity Status</h3>
+                    <div className="w-full h-52 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={statusData} innerRadius={65} outerRadius={85} dataKey="value" stroke="none">
+                                    <Label value={totalStatus} position="center" className="text-3xl font-black fill-slate-900 dark:fill-white" />
+                                </Pie>
+                                <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+                                <RechartsTooltip content={<CustomTooltip />} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* 2. Opportunity Value */}
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col">
+                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-2 text-sm">Opportunity Value</h3>
+                    <div className="w-full h-40 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={valueData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" className="dark:stroke-slate-700" />
+                                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold' }} tickFormatter={(val) => `€${val >= 1000 ? val / 1000 + 'k' : val}`} />
+                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#94a3b8' }} width={50} />
+                                <RechartsTooltip content={<CustomTooltip isCurrency />} cursor={{ fill: 'transparent' }} />
+                                <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="text-center mt-2 border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Total Revenue</p>
+                        <p className="text-xl font-black text-slate-900 dark:text-white">€{totalRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
+
+                {/* 3. Conversion Rate */}
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col items-center">
+                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-2 text-sm">Conversion Rate</h3>
+                    <div className="w-full h-44 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={[{ value: winRate, fill: '#38bdf8' }, { value: Math.max(100 - winRate, 0), fill: '#f1f5f9', stroke: 'none' }]} innerRadius={65} outerRadius={85} dataKey="value" stroke="none" startAngle={90} endAngle={-270}>
+                                    <Label value={`${winRate.toFixed(2)}%`} position="center" className="text-2xl font-black fill-slate-900 dark:fill-white" />
+                                </Pie>
+                                <RechartsTooltip content={({ active }) => active && winRate > 0 ? <div className="bg-white/90 dark:bg-slate-800/90 p-2 rounded-lg shadow font-bold text-sm">Tasa de Cierre: {winRate.toFixed(2)}%</div> : null} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="text-center mt-3 w-full">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Won Revenue</p>
+                        <p className="text-xl font-black text-slate-900 dark:text-white">€{wonValue.toLocaleString()}</p>
+                    </div>
+                </div>
             </div>
 
-            {pacingData && (
-                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+            {/* Bottom Row: 2 Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6">
 
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 relative z-10 gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-xl ${pacingData.isOnTrack ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-rose-100 dark:bg-rose-900/30'}`}>
-                                {pacingData.isOnTrack ? <Target className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="w-6 h-6 text-rose-600 dark:text-rose-400" />}
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                                    Ritmo hacia Objetivo (Pacing)
-                                    {!pacingData.isOnTrack && <span className="text-xs bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 px-2 py-0.5 rounded-full font-bold">Riesgo</span>}
-                                </h3>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm">Objetivo mensual: €{pacingData.target.toLocaleString()}</p>
-                            </div>
-                        </div>
-
-                        <div className="text-right">
-                            <div className="text-3xl font-extrabold text-slate-900 dark:text-white">€{pacingData.current.toLocaleString()}</div>
-                            <div className={`text-sm font-bold ${pacingData.isOnTrack ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {pacingData.isOnTrack ? '↑ Por encima del ritmo esperado' : `↓ A €${(pacingData.targetPace - pacingData.current).toLocaleString()} del ritmo óptimo`}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="relative h-6 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden z-10 p-1">
-                        <div className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.min((pacingData.current / pacingData.target) * 100, 100)}%` }}></div>
-                        <div className="absolute top-0 bottom-0 w-1 bg-slate-900 dark:bg-white z-20" style={{ left: `${Math.min((pacingData.targetPace / pacingData.target) * 100, 100)}%` }} title="Ritmo Esperado Hoy"></div>
-                    </div>
-                    <div className="flex justify-between mt-2 text-xs font-bold text-slate-400 z-10 relative">
-                        <span>€0</span>
-                        <span>Esperado Hoy (Línea)</span>
-                        <span>€{pacingData.target.toLocaleString()}</span>
-                    </div>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
-                    <h3 className="font-bold text-slate-900 dark:text-white mb-6 text-lg">Tendencia de Ingresos</h3>
-                    <div className="h-80 min-h-[320px]">
-                        {trendData.length > 0 ? (
+                {/* 4. Funnel */}
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col">
+                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-4 text-sm flex justify-between">
+                        Funnel
+                        <span className="text-xs text-slate-400 font-normal border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900">Oportunidades Abiertas por Etapa</span>
+                    </h3>
+                    <div className="w-full h-96 pr-4">
+                        {stageData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trendData}>
-                                    <defs>
-                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} tickFormatter={(val) => `€${val / 1000}k`} />
-                                    <Tooltip content={<CustomTooltip isCurrency />} />
-                                    <Area type="monotone" dataKey="value" name="Ingresos" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRevenue)" activeDot={{ r: 8, strokeWidth: 0 }} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : <ChartSkeleton />}
-                    </div>
-                </div>
-
-                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
-                    <h3 className="font-bold text-slate-900 dark:text-white mb-6 text-lg">Distribución de Oportunidades</h3>
-                    <div className="h-80 min-h-[320px]">
-                        {distributionData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={distributionData} margin={{ top: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} content={<CustomTooltip />} />
-                                    <Bar dataKey="value" name="Oportunidades" radius={[6, 6, 0, 0]} barSize={48}>
-                                        {distributionData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                <BarChart data={stageData} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold' }} width={140} />
+                                    <RechartsTooltip content={<CustomTooltip isCurrency />} cursor={{ fill: 'transparent' }} />
+                                    <Bar dataKey="value" barSize={32} radius={[0, 4, 4, 0]}>
+                                        {stageData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill} />
                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
-                        ) : <ChartSkeleton />}
+                        ) : <EmptyState title="Sin etapas" description="No hay etapas activas en este pipeline." />}
+                    </div>
+                </div>
+
+                {/* 5. Stage Distribution */}
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col items-center">
+                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-4 text-sm">Stage Distribution</h3>
+                    <div className="w-full h-80 relative mt-4">
+                        {stageData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={stageData} innerRadius={80} outerRadius={110} dataKey="count" stroke="none">
+                                        <Label value={totalOpenInPipe} position="center" className="text-4xl font-black fill-slate-900 dark:fill-white" />
+                                    </Pie>
+                                    <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', width: '45%' }} formatter={(value, entry: any) => `${value} (${entry.payload.count})`} />
+                                    <RechartsTooltip content={<CustomTooltip />} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <EmptyState title="Sin pipeline" description="No hay un pipeline seleccionado." />}
                     </div>
                 </div>
             </div>
 
-            {/* Pipeline Distribution Chart */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
-                <h3 className="font-bold text-slate-900 dark:text-white mb-6 text-lg">Distribución por Pipeline (Oportunidades Abiertas)</h3>
-                <div className="h-80 min-h-[320px]">
-                    {pipelineDistributionData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={pipelineDistributionData} margin={{ top: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
-                                <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(val) => `€${val / 1000}k`} />
-                                <Tooltip cursor={{ fill: 'transparent' }} content={<CustomTooltip />} />
-                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                <Bar yAxisId="left" dataKey="Oportunidades" name="Num. Tratos" barSize={32} fill="#6366f1" radius={[4, 4, 0, 0]} />
-                                <Line yAxisId="right" type="monotone" dataKey="Valor" name="Valor (€)" stroke="#10b981" strokeWidth={3} dot={{ r: 6, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }} />
-                            </ComposedChart>
-                        </ResponsiveContainer>
-                    ) : <ChartSkeleton />}
-                </div>
-            </div>
         </div>
     );
 };

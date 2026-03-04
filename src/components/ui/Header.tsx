@@ -183,23 +183,13 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
                     {Array.isArray(ghlUsers) && ghlUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
                 </select>
 
-                <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
 
-                <select
-                    value={filters.source || 'all'}
-                    onChange={(e) => setFilters({ source: e.target.value })}
-                    className="bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-4 py-2 text-sm font-extrabold focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner text-indigo-700 dark:text-indigo-400 cursor-pointer max-w-[200px] truncate"
-                >
-                    <option value="all">🌐 Todos los Orígenes</option>
-                    <option value="vsl">▶️ VSL Evergreen</option>
-                    <option value="webinar">🔴 Webinar Directo</option>
-                </select>
 
-                {(filters.pipelineId || filters.userId || filters.source !== 'all' || filters.period !== '30days') && (
+                {(filters.pipelineId || filters.userId || filters.period !== '30days') && (
                     <button
                         onClick={() => {
                             handlePeriodChange('30days');
-                            setFilters({ pipelineId: '', userId: '', source: 'all' });
+                            setFilters({ pipelineId: '', userId: '' });
                         }}
                         className="text-xs text-rose-500 font-bold hover:underline ml-auto flex items-center gap-1 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 rounded-lg"
                     >

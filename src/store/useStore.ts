@@ -23,7 +23,6 @@ interface AppState {
     pipelineId: string;
     userId: string;
     period: string;
-    source: string;
   };
 
   // Actions
@@ -61,8 +60,7 @@ export const useStore = create<AppState>((set, get) => ({
     endDate: format(new Date(), 'yyyy-MM-dd'),
     pipelineId: '',
     userId: '',
-    period: '30days',
-    source: 'all'
+    period: '30days'
   },
 
   setUser: (user) => set({ user }),
@@ -157,8 +155,7 @@ export const useStore = create<AppState>((set, get) => ({
         startDate: filters.startDate,
         endDate: filters.endDate,
         pipelineId: filters.pipelineId,
-        userId: filters.userId,
-        source: filters.source
+        userId: filters.userId
       });
       const res = await fetch(`/api/crm/opportunities?${query.toString()}`);
       const data = await res.json();
@@ -178,8 +175,7 @@ export const useStore = create<AppState>((set, get) => ({
         startDate: filters.startDate,
         endDate: filters.endDate,
         pipelineId: filters.pipelineId,
-        userId: filters.userId,
-        source: filters.source
+        userId: filters.userId
       });
       const res = await fetch(`/api/metrics/overview?${query.toString()}`);
       const data = await res.json();
