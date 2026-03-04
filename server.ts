@@ -515,6 +515,7 @@ app.post("/api/crm/sync", async (req, res) => {
             allOpps = [...allOpps, ...oppRes.data.opportunities];
           }
         }
+      } else {
         // V2: Use search endpoint (POST) iterating through all specific statuses
         console.log(`Fetching V2 opportunities for ${locationId}...`);
         try {
@@ -732,6 +733,11 @@ app.post("/api/crm/sync", async (req, res) => {
       console.log("No opportunities found to sync.");
     }
 
+    // Bump the connection timestamp so the Dashboard "Sincronizado" clock updates
+    await supabase.from("ghl_connections")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("location_id", locationId);
+
     res.json({ success: true, count: upsertData.length });
   } catch (error: any) {
     console.error("Sync Error:", error.response?.data || error.message);
@@ -774,7 +780,7 @@ app.post("/api/ghl/webhook", async (req, res) => {
       }
 
       // Bump the connection timestamp so the Dashboard "Sincronizado" clock updates
-      await supabase.from("ghl_connection")
+      await supabase.from("ghl_connections")
         .update({ updated_at: new Date().toISOString() })
         .eq("location_id", payload.locationId);
 
