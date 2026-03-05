@@ -58,8 +58,20 @@ export const Overview = () => {
         const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
 
         // 4 & 5. Funnel & Stage Distribution
-        // Find the active pipeline or first if none selected
-        const activePipelineId = filters.pipelineId || (pipelines.length > 0 ? pipelines[0].id : null);
+        // Find the active pipeline or the one with the most opportunities if none selected
+        let activePipelineId = filters.pipelineId;
+
+        if (!activePipelineId && pipelines.length > 0) {
+            // Count opps per pipeline to find the most active one
+            const pipeCounts = safeOpps.reduce((acc: any, curr: any) => {
+                const pid = curr.pipeline_id;
+                if (pid) acc[pid] = (acc[pid] || 0) + 1;
+                return acc;
+            }, {});
+
+            activePipelineId = Object.keys(pipeCounts).reduce((a, b) => pipeCounts[a] > pipeCounts[b] ? a : b, pipelines[0].id);
+        }
+
         const activePipeline = pipelines.find(p => p.id === activePipelineId);
 
         const stageData: any[] = [];

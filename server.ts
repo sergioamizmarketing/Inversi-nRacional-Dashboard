@@ -881,7 +881,6 @@ app.get("/api/metrics/overview", async (req, res) => {
     }
 
     let totalInDb = 0;
-    /*
     try {
       const { count } = await supabase
         .from("opportunities")
@@ -891,7 +890,6 @@ app.get("/api/metrics/overview", async (req, res) => {
     } catch (err: any) {
       console.warn("totalInDb fetch failed (mocking 0):", err.message);
     }
-    */
 
     console.log(`Overview: Found ${opps.length} opps for filters. Total in DB for location: ${totalInDb}`);
 
