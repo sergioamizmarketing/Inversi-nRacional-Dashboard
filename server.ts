@@ -23,6 +23,67 @@ const supabase = createClient(
 
 app.use(express.json());
 
+// Helper function to get and potentially refresh the GHL connection
+async function getValidConnection(locationId: string) {
+  const { data: connection, error } = await supabase
+    .from("ghl_connections")
+    .select("*")
+    .eq("location_id", locationId)
+    .single();
+
+  if (error || !connection) return null;
+
+  // Check if token is internal/V1 or already invalid
+  if (connection.refresh_token === "internal" || !connection.refresh_token) {
+    return connection;
+  }
+
+  // Check expiration (refresh if expiring in less than 15 minutes)
+  const expiresAtStr = connection.token_expires_at || connection.updated_at;
+  const expiresAt = new Date(expiresAtStr).getTime();
+  const now = Date.now();
+  const timeToExpiry = expiresAt - now;
+
+  if (timeToExpiry < 15 * 60 * 1000) {
+    console.log(`Refreshing expired GHL token for location: ${locationId}`);
+    try {
+      const encodedParams = new URLSearchParams();
+      encodedParams.append('client_id', process.env.GHL_CLIENT_ID!);
+      encodedParams.append('client_secret', process.env.GHL_CLIENT_SECRET!);
+      encodedParams.append('grant_type', 'refresh_token');
+      encodedParams.append('refresh_token', connection.refresh_token);
+
+      const response = await axios.post("https://services.leadconnectorhq.com/oauth/token", encodedParams, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json'
+        }
+      });
+
+      const { access_token, refresh_token, expires_in } = response.data;
+      const newExpiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+
+      const { error: updateError } = await supabase.from("ghl_connections").update({
+        access_token,
+        refresh_token,
+        token_expires_at: newExpiresAt,
+        updated_at: new Date().toISOString()
+      }).eq("location_id", locationId);
+
+      if (!updateError) {
+        connection.access_token = access_token;
+        connection.refresh_token = refresh_token;
+        connection.token_expires_at = newExpiresAt;
+      }
+    } catch (refreshErr: any) {
+      console.error("Token refresh failed:", refreshErr.response?.data || refreshErr.message);
+      // Could return null here to force re-auth, but let's return connection and let the API call fail if truly invalid
+    }
+  }
+
+  return connection;
+}
+
 // Expose public config to the frontend at runtime
 app.get("/api/config", (req, res) => {
   res.json({
@@ -424,11 +485,7 @@ app.get("/api/crm/sync", async (req, res) => {
     const isFullSync = full === 'true';
 
     console.log(`Starting ${isFullSync ? 'FULL ' : ''}CRM sync for ${locationId}...`);
-    const { data: connection } = await supabase
-      .from("ghl_connections")
-      .select("*")
-      .eq("location_id", locationId)
-      .single();
+    const connection = await getValidConnection(locationId as string);
 
     if (!connection) return res.status(404).json({ error: "Connection not found" });
 
@@ -919,11 +976,7 @@ app.get("/api/metrics/overview", async (req, res) => {
 app.get("/api/crm/pipelines", async (req, res) => {
   const { locationId } = req.query;
   try {
-    let connection = null;
-    try {
-      const { data } = await supabase.from("ghl_connections").select("*").eq("location_id", locationId).single();
-      connection = data;
-    } catch (e) { }
+    const connection = await getValidConnection(locationId as string);
 
     if (!connection) {
       return res.json([
@@ -953,11 +1006,7 @@ app.get("/api/crm/pipelines", async (req, res) => {
 app.get("/api/crm/users", async (req, res) => {
   const { locationId } = req.query;
   try {
-    let connection = null;
-    try {
-      const { data } = await supabase.from("ghl_connections").select("*").eq("location_id", locationId).single();
-      connection = data;
-    } catch (e) { }
+    const connection = await getValidConnection(locationId as string);
 
     if (!connection) {
       return res.json([
