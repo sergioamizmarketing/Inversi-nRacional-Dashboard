@@ -4,11 +4,11 @@ import { TrendingUp, AlertCircle } from 'lucide-react';
 import { EmptyState } from '../components/ui/Indicators';
 
 export const Performance = () => {
-    const { ghlUsers, opportunities } = useStore();
+    const { customClosers, opportunities } = useStore();
 
     const safeOpps = Array.isArray(opportunities) ? opportunities : [];
 
-    const performanceData = (Array.isArray(ghlUsers) ? ghlUsers : []).map((user: any) => {
+    const performanceData = (Array.isArray(customClosers) ? customClosers : []).map((closerName: string) => {
         const isCloser = (o: any) => {
             // Support both mapped custom_fields (if we ever did) or raw GHL payload
             const customFields = o.custom_fields || o.raw?.customFields;
@@ -25,15 +25,8 @@ export const Performance = () => {
             const val = String(closerField.field_value || closerField.value || "").toLowerCase().trim();
             if (!val) return false;
 
-            // Match by ID
-            if (val === String(user.id).toLowerCase()) return true;
-
-            // Match by Full Name
-            const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase().trim();
-            if (val === userFullName && userFullName !== "") return true;
-            if (val.includes(String(user.firstName || '').toLowerCase()) && val.includes(String(user.lastName || '').toLowerCase()) && user.firstName) return true;
-
-            return false;
+            // Provide a direct string match since val and closerName are both strings
+            return val === closerName.toLowerCase().trim();
         };
 
         const userOpps = safeOpps.filter(isCloser);
@@ -48,7 +41,8 @@ export const Performance = () => {
         const dropOffRate = userOpps.length > 0 ? (lostOpps.length / userOpps.length) * 100 : 0;
 
         return {
-            ...user,
+            id: closerName,
+            firstName: closerName,
             revenue,
             oppCount: userOpps.length,
             winRate,
@@ -88,15 +82,15 @@ export const Performance = () => {
                                     <div className="flex items-center gap-4">
                                         <div className="relative">
                                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm shadow-sm">
-                                                {closer.firstName?.[0] || 'U'}{closer.lastName?.[0] || ''}
+                                                {closer.firstName?.[0] || 'C'}
                                             </div>
                                             {index === 0 && (
                                                 <div className="absolute -top-2 -right-2 bg-amber-400 text-amber-900 border border-amber-200 text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-md rotate-12">1</div>
                                             )}
                                         </div>
                                         <div>
-                                            <span className="font-bold text-slate-900 dark:text-white block">{closer.firstName} {closer.lastName}</span>
-                                            <span className="text-xs text-slate-400">ID: {closer.id.slice(0, 6)}...</span>
+                                            <span className="font-bold text-slate-900 dark:text-white block">{closer.firstName}</span>
+                                            <span className="text-xs text-slate-400">Custom Closer</span>
                                         </div>
                                     </div>
                                 </td>

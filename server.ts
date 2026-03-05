@@ -937,14 +937,10 @@ app.get("/api/metrics/overview", async (req, res) => {
     if (pipelineId) {
       query = query.eq("pipeline_id", pipelineId);
     }
-    if (userId) {
-      query = query.eq("owner_user_id", userId);
-    }
 
     console.log("MARKER 1: Built query");
 
     let rawOpps: any[] = [];
-    /*
     try {
       const { data, error } = await query;
       if (error) {
@@ -955,7 +951,6 @@ app.get("/api/metrics/overview", async (req, res) => {
     } catch (err: any) {
       console.warn("Supabase fetch failed (mocking instead):", err.message);
     }
-    */
 
     console.log("MARKER 2: Checked rawOpps length");
 
@@ -989,6 +984,27 @@ app.get("/api/metrics/overview", async (req, res) => {
     // Filter by source if requested
     if (source && source !== 'all') {
       opps = opps.filter(o => o.source === source);
+    }
+
+    // Filter by closer custom field (using frontend userId as the closer string)
+    if (userId && userId !== 'all') {
+      const matchUserId = String(userId).toLowerCase().trim();
+      opps = opps.filter(o => {
+        const customFields = o.raw?.customFields || o.custom_fields;
+        if (!customFields || !Array.isArray(customFields)) return false;
+
+        const closerField = customFields.find((f: any) =>
+          String(f.key || "").toLowerCase().includes('closer') ||
+          String(f.name || "").toLowerCase().includes('closer') ||
+          String(f.id || "").toLowerCase().includes('closer')
+        );
+
+        if (!closerField) return false;
+        const val = String(closerField.field_value || closerField.value || "").toLowerCase().trim();
+        if (!val) return false;
+
+        return val === matchUserId || val.includes(matchUserId) || matchUserId.includes(val);
+      });
     }
 
     let totalInDb = 0;
@@ -1183,7 +1199,6 @@ app.get("/api/crm/opportunities", async (req, res) => {
     if (pipelineId) query = query.eq("pipeline_id", pipelineId);
     if (startDate) query = query.gte("created_at", `${startDate}T00:00:00Z`);
     if (endDate) query = query.lte("created_at", `${endDate}T23:59:59Z`);
-    if (userId) query = query.eq("owner_user_id", userId);
 
     let rawOpps: any[] = [];
     try {
@@ -1223,6 +1238,27 @@ app.get("/api/crm/opportunities", async (req, res) => {
     // Filter by source if requested
     if (source && source !== 'all') {
       opps = opps.filter(o => o.source === source);
+    }
+
+    // Filter by closer custom field (using frontend userId as the closer string)
+    if (userId && userId !== 'all') {
+      const matchUserId = String(userId).toLowerCase().trim();
+      opps = opps.filter(o => {
+        const customFields = o.raw?.customFields || o.custom_fields;
+        if (!customFields || !Array.isArray(customFields)) return false;
+
+        const closerField = customFields.find((f: any) =>
+          String(f.key || "").toLowerCase().includes('closer') ||
+          String(f.name || "").toLowerCase().includes('closer') ||
+          String(f.id || "").toLowerCase().includes('closer')
+        );
+
+        if (!closerField) return false;
+        const val = String(closerField.field_value || closerField.value || "").toLowerCase().trim();
+        if (!val) return false;
+
+        return val === matchUserId || val.includes(matchUserId) || matchUserId.includes(val);
+      });
     }
 
     res.json(opps || []);

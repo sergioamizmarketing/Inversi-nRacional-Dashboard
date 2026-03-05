@@ -19,7 +19,8 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
         setFilters,
         handlePeriodChange,
         pipelines,
-        ghlUsers
+        ghlUsers,
+        customClosers
     } = useStore();
 
     const [syncing, setSyncing] = React.useState(false);
@@ -181,7 +182,7 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
                     className="bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner text-slate-700 dark:text-slate-200 cursor-pointer max-w-[200px] truncate"
                 >
                     <option value="">Todos los Closers</option>
-                    {Array.isArray(ghlUsers) && ghlUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+                    {Array.isArray(customClosers) && customClosers.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
 
 

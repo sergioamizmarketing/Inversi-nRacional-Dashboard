@@ -8,6 +8,7 @@ interface AppState {
   connection: any | null;
   pipelines: any[];
   ghlUsers: any[];
+  customClosers: string[];
   isDark: boolean;
   sidebarOpen: boolean;
 
@@ -30,6 +31,7 @@ interface AppState {
   setConnection: (connection: any | null) => void;
   setPipelines: (pipelines: any[]) => void;
   setGhlUsers: (users: any[]) => void;
+  setCustomClosers: (closers: string[]) => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
   setOpportunities: (opps: any[]) => void;
@@ -49,6 +51,7 @@ export const useStore = create<AppState>((set, get) => ({
   connection: null,
   pipelines: [],
   ghlUsers: [],
+  customClosers: [],
   isDark: false,
   sidebarOpen: true,
   opportunities: [],
@@ -67,6 +70,7 @@ export const useStore = create<AppState>((set, get) => ({
   setConnection: (connection) => set({ connection }),
   setPipelines: (pipelines) => set({ pipelines }),
   setGhlUsers: (ghlUsers) => set({ ghlUsers }),
+  setCustomClosers: (customClosers) => set({ customClosers }),
   toggleTheme: () => set((state) => {
     const newIsDark = !state.isDark;
     if (newIsDark) {
@@ -127,9 +131,10 @@ export const useStore = create<AppState>((set, get) => ({
     const { connection } = get();
     if (!connection) return;
     try {
-      const [pipeRes, userRes] = await Promise.all([
+      const [pipeRes, userRes, closersRes] = await Promise.all([
         fetch(`/api/crm/pipelines?locationId=${connection.location_id}`),
-        fetch(`/api/crm/users?locationId=${connection.location_id}`)
+        fetch(`/api/crm/users?locationId=${connection.location_id}`),
+        fetch(`/api/crm/closers?locationId=${connection.location_id}`)
       ]);
 
       if (pipeRes.ok) {
@@ -140,6 +145,11 @@ export const useStore = create<AppState>((set, get) => ({
       if (userRes.ok) {
         const users = await userRes.json();
         set({ ghlUsers: Array.isArray(users) ? users : [] });
+      }
+
+      if (closersRes.ok) {
+        const closers = await closersRes.json();
+        set({ customClosers: Array.isArray(closers) ? closers : [] });
       }
     } catch (err) {
       console.error('Error fetching metadata:', err);
