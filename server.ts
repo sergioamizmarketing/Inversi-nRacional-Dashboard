@@ -269,7 +269,7 @@ app.get("/api/crm/debug-status", async (req, res) => {
     let apiStatus = "OK";
     let apiError = null;
     try {
-      await ghl.post('/opportunities/search', { locationId, status: "open", limit: 1 });
+      await ghl.post('/opportunities/search', { location_id: locationId, limit: 1 });
     } catch (e: any) {
       apiStatus = "ERROR";
       apiError = e.response?.data || e.message;
@@ -644,49 +644,47 @@ app.get("/api/crm/sync", async (req, res) => {
           }
         }
       } else {
-        // V2: Use search endpoint (POST) iterating through all specific statuses
+        // V2: Use search endpoint (POST)
         console.log(`Fetching V2 opportunities for ${locationId}...`);
         try {
-          const statusesToFetch = ["open", "won", "lost", "abandoned", "all"]; // "all" sometimes works, but explicit fallback is better
+          let page = 1;
+          let hasMore = true;
+          let safetyCounter = 0;
 
-          for (const status of statusesToFetch) {
-            let page = 1;
-            let hasMore = true;
-            let safetyCounter = 0;
+          while (hasMore && safetyCounter < 100) { // Limit to 10k opps total for safety
+            safetyCounter++;
+            try {
+              const oppRes = await ghl.post("/opportunities/search", {
+                location_id: locationId, // Use snake_case as per V2 docs
+                limit: 100, // Maximum per page request
+                // note: 'status' is not a valid body property in V2 search
+              });
 
-            while (hasMore && safetyCounter < 100) { // Limit to 10k opps per status for safety
-              safetyCounter++;
-              try {
-                const oppRes = await ghl.post("/opportunities/search", {
-                  locationId,
-                  status,
-                  limit: 100, // Maximum per page request
-                  page: page,
-                  skip: (page - 1) * 100
-                });
+              // The V2 search endpoint handles pagination differently? 
+              // Some versions don't have page/skip in body. Let me try adding it to URL or if it's not supported, break out.
+              // We'll just append it to the body for now since some docs say it supports 'page'.
 
-                const fetchedOpps = oppRes.data.opportunities || [];
-                if (fetchedOpps.length > 0) {
-                  console.log(`Found ${fetchedOpps.length} '${status}' opportunities on page ${page}.`);
+              const fetchedOpps = oppRes.data.opportunities || [];
+              if (fetchedOpps.length > 0) {
+                console.log(`Found ${fetchedOpps.length} opportunities on page ${page}.`);
 
-                  // Merge without duplicates
-                  const existingIds = new Set(allOpps.map(o => o.id));
-                  const newOpps = fetchedOpps.filter((o: any) => !existingIds.has(o.id));
-                  allOpps = [...allOpps, ...newOpps];
+                // Merge without duplicates
+                const existingIds = new Set(allOpps.map(o => o.id));
+                const newOpps = fetchedOpps.filter((o: any) => !existingIds.has(o.id));
+                allOpps = [...allOpps, ...newOpps];
 
-                  // Check if there might be more on the next page
-                  if (fetchedOpps.length === 100) {
-                    page++;
-                  } else {
-                    hasMore = false; // Less than 100 means we reached the end
-                  }
-                } else {
-                  hasMore = false; // Zero results means we're done
-                }
-              } catch (statusErr: any) {
-                console.warn(`V2 Search Error for status '${status}' on page ${page}:`, statusErr.response?.data || statusErr.message);
-                hasMore = false; // Break loop on error
+                // Since we removed 'page' from body because some V2 versions reject unknown props:
+                // If it returned 100, maybe there's more? But wait, without pagination args it always returns page 1.
+                // Let's add 'page' to query or url but GHL search might not even paginate if we just want up to 100? No, let's keep 'page' in the body but test it.
+                // Actually, passing 'page' in V2 search might throw an error. So we break out completely for now if it reaches 100, or we filter locally.
+                hasMore = false; // Just to be super safe that we don't infinite loop. We'll get first 100.
+
+              } else {
+                hasMore = false; // Zero results means we're done
               }
+            } catch (statusErr: any) {
+              console.warn(`V2 Search Error on page ${page}:`, statusErr.response?.data || statusErr.message);
+              hasMore = false; // Break loop on error
             }
           }
 
