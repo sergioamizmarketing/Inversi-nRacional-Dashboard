@@ -52,6 +52,7 @@ async function getValidConnection(locationId: string) {
       encodedParams.append('client_secret', process.env.GHL_CLIENT_SECRET!);
       encodedParams.append('grant_type', 'refresh_token');
       encodedParams.append('refresh_token', connection.refresh_token);
+      encodedParams.append('user_type', 'Location');
 
       const response = await axios.post("https://services.leadconnectorhq.com/oauth/token", encodedParams, {
         headers: {
@@ -228,6 +229,54 @@ app.get("/api/crm/status", async (req, res) => {
     }
   } catch (error: any) {
     res.status(500).json({ connected: false, error: error.message });
+  }
+});
+
+app.get("/api/crm/debug-status", async (req, res) => {
+  const { locationId } = req.query;
+  if (!locationId) return res.send("Missing locationId in query string");
+  try {
+    const startObj = await supabase.from('ghl_connections').select('*').eq('location_id', locationId).single();
+    if (!startObj.data) {
+      return res.send("No connection found in database for that location.");
+    }
+
+    const connectionInfo = {
+      hasToken: !!startObj.data.access_token,
+      hasRefresh: !!startObj.data.refresh_token,
+      expires: startObj.data.token_expires_at,
+    };
+
+    const validConnection = await getValidConnection(locationId as string);
+    if (!validConnection) {
+      return res.send(`Failed to get valid connection. <br><pre>${JSON.stringify(connectionInfo, null, 2)}</pre>`);
+    }
+
+    // Try a test call
+    const ghl = axios.create({
+      baseURL: "https://services.leadconnectorhq.com",
+      headers: { Authorization: `Bearer ${validConnection.access_token}`, Version: '2021-07-28' }
+    });
+
+    let apiStatus = "OK";
+    let apiError = null;
+    try {
+      await ghl.post('/opportunities/search', { locationId, status: "open", limit: 1 });
+    } catch (e: any) {
+      apiStatus = "ERROR";
+      apiError = e.response?.data || e.message;
+    }
+
+    res.json({
+      connectionBeforeRefresh: connectionInfo,
+      validConnectionReturned: !!validConnection,
+      apiTest: apiStatus,
+      apiError: apiError,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (err: any) {
+    res.send(`DEBUG ENDPOINT FATAL: ${err.message}`);
   }
 });
 
