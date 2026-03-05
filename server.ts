@@ -417,11 +417,13 @@ async function refreshGHLData(locationId: string, opportunityId: string) {
 
 // --- Metrics Endpoints ---
 
-app.post("/api/crm/sync", async (req, res) => {
-  const { locationId } = req.body;
-  if (!locationId) return res.status(400).json({ error: "Location ID required" });
-
+app.get("/api/crm/sync", async (req, res) => {
   try {
+    const { locationId, full } = req.query;
+    if (!locationId) return res.status(400).json({ error: "Missing locationId" });
+    const isFullSync = full === 'true';
+
+    console.log(`Starting ${isFullSync ? 'FULL ' : ''}CRM sync for ${locationId}...`);
     const { data: connection } = await supabase
       .from("ghl_connections")
       .select("*")
@@ -499,6 +501,18 @@ app.post("/api/crm/sync", async (req, res) => {
       }
     } catch (metaError: any) {
       console.warn("Metadata sync failed, but proceeding with opportunities:", metaError.message);
+    }
+
+    // 1. If Full Sync, wipe existing data for this location first
+    if (isFullSync) {
+      console.log(`Wiping existing opportunities for location ${locationId} before full sync...`);
+      const { error: wipeErr } = await supabase
+        .from('opportunities')
+        .delete()
+        .eq('location_id', locationId);
+      if (wipeErr) {
+        console.warn("Wipe failed, continuing anyway:", wipeErr.message);
+      }
     }
 
     let allOpps: any[] = [];
@@ -793,63 +807,6 @@ app.post("/api/ghl/webhook", async (req, res) => {
   } catch (err: any) {
     console.error("Webhook Internal Error:", err.message);
     res.status(500).json({ error: err.message });
-  }
-});
-
-// --- TEMP DIRECT GHL DEBUG ENDPOINT ---
-app.get("/api/crm/debug-ghl-direct", async (req, res) => {
-  const { locationId } = req.query;
-  try {
-    const { data: connection } = await supabase.from("ghl_connections").select("*").eq("location_id", locationId).single();
-    if (!connection) return res.status(404).json({ error: "No connection." });
-
-    const isPit = connection.access_token.startsWith("pit-");
-    const isV1 = connection.refresh_token === "internal" && !isPit;
-    const baseURL = isV1 ? "https://rest.gohighlevel.com/v1" : "https://services.leadconnectorhq.com";
-    const headers: any = { Authorization: `Bearer ${connection.access_token}` };
-    if (!isV1) headers["Version"] = "2021-07-28";
-
-    const ghl = axios.create({ baseURL, headers });
-
-    // Query 1: Exactly 'open' status
-    const oppResOpen = await ghl.post("/opportunities/search", {
-      locationId: locationId,
-      status: "open",
-      limit: 100
-    });
-
-    // Query 2: All statuses (omit status filter)
-    const oppResAll = await ghl.post("/opportunities/search", {
-      locationId: locationId,
-      limit: 100
-    });
-
-    const resultsOpen = oppResOpen.data.opportunities || [];
-    const resultsAll = oppResAll.data.opportunities || [];
-
-    // Find what is structurally missing from 'open' but present in 'all'
-    const openIds = new Set(resultsOpen.map((o: any) => o.id));
-    const onlyInAll = resultsAll.filter((o: any) => !openIds.has(o.id));
-
-    res.json({
-      totalCountOpen: resultsOpen.length,
-      totalCountAll: resultsAll.length,
-      namesOpen: resultsOpen.map((o: any) => `${o.name} (Stage: ${o.pipelineStageId || o.stageId})`),
-      namesMissingFromOpen: onlyInAll.map((o: any) => `${o.name} (Status in API: ${o.status}) (Stage: ${o.pipelineStageId})`)
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || "Failed API call" });
-  }
-});
-
-// --- TEMP DEBUG ENDPOINT ---
-app.get("/api/debug/dump", async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('opportunities').select('name, status, stage_id, pipeline_id, id, value').ilike('name', '%test%');
-    if (error) throw error;
-    res.json(data);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
   }
 });
 

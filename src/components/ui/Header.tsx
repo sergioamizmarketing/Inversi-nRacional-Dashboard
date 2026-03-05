@@ -35,19 +35,17 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
         return 'Resumen Ejecutivo';
     };
 
-    const handleSync = async () => {
+    const handleSync = async (isFull = false) => {
         if (!connection) return;
         setSyncing(true);
         try {
-            const res = await fetch('/api/crm/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ locationId: connection.location_id })
-            });
+            const url = `/api/crm/sync?locationId=${connection.location_id}${isFull ? '&full=true' : ''}`;
+            const res = await fetch(url);
             const data = await res.json();
             if (res.ok) {
                 console.log(`Synced ${data.count} opportunities`);
                 await Promise.all([fetchMetrics(), fetchMetadata(), fetchOpportunities()]);
+                if (isFull) alert('¡Reinicio completado! Los datos son ahora un espejo exacto de GHL.');
             } else {
                 alert(data.error || 'Sync failed');
             }
@@ -94,14 +92,29 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
                             {opportunities.length} / {totalOpps} opps
                         </div>
                         <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 hidden md:block" />
-                        <button
-                            onClick={handleSync}
-                            disabled={syncing}
-                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50 font-semibold"
-                        >
-                            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                            <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => handleSync(false)}
+                                disabled={syncing}
+                                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50 font-semibold"
+                                title="Sincronización incremental"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                                <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (confirm('¿Estás seguro de que quieres reiniciar los datos? Esto borrará los registros actuales y los traerá frescos de GHL.')) {
+                                        handleSync(true);
+                                    }
+                                }}
+                                disabled={syncing}
+                                className="text-xs text-slate-400 hover:text-rose-500 transition-all font-medium border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg hover:border-rose-200"
+                                title="Reiniciar base de datos y resincronizar"
+                            >
+                                Reiniciar Datos
+                            </button>
+                        </div>
                     </div>
 
                     <button
