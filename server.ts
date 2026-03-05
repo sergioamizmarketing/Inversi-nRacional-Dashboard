@@ -269,7 +269,7 @@ app.get("/api/crm/debug-status", async (req, res) => {
     let apiStatus = "OK";
     let apiError = null;
     try {
-      await ghl.post('/opportunities/search', { location_id: locationId, limit: 1 });
+      await ghl.post('/opportunities/search', { locationId, limit: 1 });
     } catch (e: any) {
       apiStatus = "ERROR";
       apiError = e.response?.data || e.message;
@@ -655,9 +655,8 @@ app.get("/api/crm/sync", async (req, res) => {
             safetyCounter++;
             try {
               const oppRes = await ghl.post("/opportunities/search", {
-                location_id: locationId, // Use snake_case as per V2 docs
+                locationId,
                 limit: 100, // Maximum per page request
-                // note: 'status' is not a valid body property in V2 search
               });
 
               // The V2 search endpoint handles pagination differently? 
