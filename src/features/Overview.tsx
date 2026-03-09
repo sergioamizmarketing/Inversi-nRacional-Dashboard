@@ -115,7 +115,7 @@ export const Overview = () => {
     );
 
     if (!chartData || opportunities.length === 0) {
-        return <div style={{ fontSize: '100px', background: 'red', color: 'white', height: '500px', padding: '50px' }}>ESTOY AQUI. SIN DATOS.</div>;
+        return <EmptyState title="Sin datos comerciales" description="No hemos encontrado oportunidades en el rango de fechas seleccionado. Cambia los filtros o sincroniza con tu CRM." />;
     }
 
     const { statusData, totalStatus, valueData, totalRevenue, winRate, wonValue, stageData, totalOpenInPipe } = chartData;
