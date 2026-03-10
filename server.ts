@@ -23,6 +23,17 @@ const supabase = createClient(
 
 app.use(express.json());
 
+app.get("/api/debug-env", (req, res) => {
+  res.json({
+    hasService: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasAnon: !!process.env.SUPABASE_ANON_KEY,
+    hasViteAnon: !!process.env.VITE_SUPABASE_ANON_KEY,
+    hasUrl: !!process.env.SUPABASE_URL,
+    hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+    supabaseClientUrl: (supabase as any)?.supabaseUrl,
+    supabaseClientKeyLength: (supabase as any)?.supabaseKey?.length
+  });
+});
 // Helper function to get and potentially refresh the GHL connection
 async function getValidConnection(locationId: string) {
   const { data: connection, error } = await supabase
@@ -1415,18 +1426,6 @@ app.post("/api/copilot/chat", async (req, res) => {
     console.error("Copilot Error:", error);
     res.status(500).json({ error: "Failed to get AI response" });
   }
-});
-
-app.get("/api/debug-env", (req, res) => {
-  res.json({
-    hasService: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    hasAnon: !!process.env.SUPABASE_ANON_KEY,
-    hasViteAnon: !!process.env.VITE_SUPABASE_ANON_KEY,
-    hasUrl: !!process.env.SUPABASE_URL,
-    hasViteUrl: !!process.env.VITE_SUPABASE_URL,
-    supabaseClientUrl: (supabase as any)?.supabaseUrl,
-    supabaseClientKeyLength: (supabase as any)?.supabaseKey?.length
-  });
 });
 
 app.get("/api/debug-custom", async (req, res) => {
