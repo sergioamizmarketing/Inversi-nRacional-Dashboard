@@ -1117,7 +1117,7 @@ app.get("/api/crm/closers", async (req, res) => {
           String(f.id || "").toLowerCase().includes('closer')
         );
         if (closerField) {
-          let rawVal = closerField.fieldValue || closerField.field_value || closerField.value;
+          let rawVal = closerField.fieldValue || closerField.fieldValueString || closerField.field_value || closerField.value;
           if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
           const val = String(rawVal || "").trim();
           if (val && val.toLowerCase() !== 'none' && val.toLowerCase() !== 'null') {
@@ -1285,7 +1285,7 @@ app.get("/api/crm/opportunities", async (req, res) => {
         );
 
         if (!closerField) return false;
-        let rawVal = closerField.fieldValue || closerField.field_value || closerField.value;
+        let rawVal = closerField.fieldValue || closerField.fieldValueString || closerField.field_value || closerField.value;
         if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
         const val = String(rawVal || "").toLowerCase().trim();
         if (!val || val === 'none' || val === 'null') return false;
