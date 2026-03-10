@@ -11,7 +11,7 @@ export const Performance = () => {
     const performanceData = (Array.isArray(customClosers) ? customClosers : []).map((closerName: string) => {
         const isCloser = (o: any) => {
             // Support both mapped custom_fields (if we ever did) or raw GHL payload
-            const customFields = o.custom_fields || o.raw?.customFields;
+            const customFields = Array.isArray(o.raw?.customFields) ? o.raw.customFields : (Array.isArray(o.custom_fields) ? o.custom_fields : []);
             if (!customFields || !Array.isArray(customFields)) return false;
 
             const closerField = customFields.find((f: any) =>
