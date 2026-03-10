@@ -1412,8 +1412,9 @@ app.post("/api/copilot/chat", async (req, res) => {
 });
 
 app.get("/api/debug-custom", async (req, res) => {
-  const { data, error } = await supabase.from('opportunities').select('location_id, pipeline_id, name, raw, custom_fields').limit(20);
-  res.json({ error, data });
+  const { data: conns } = await supabase.from('ghl_connections').select('location_id, updated_at');
+  const { data: opps } = await supabase.from('opportunities').select('location_id, raw, custom_fields').limit(20);
+  res.json({ conns, opps });
 });
 
 // --- Vite Setup ---
