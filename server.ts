@@ -1111,12 +1111,15 @@ app.get("/api/crm/closers", async (req, res) => {
       const customFields = o.raw?.customFields || o.custom_fields;
       if (customFields && Array.isArray(customFields)) {
         const closerField = customFields.find((f: any) =>
+          String(f.id || "") === 'DPEKghcOYLZADdLcTR8Q' ||
           String(f.key || "").toLowerCase().includes('closer') ||
           String(f.name || "").toLowerCase().includes('closer') ||
           String(f.id || "").toLowerCase().includes('closer')
         );
         if (closerField) {
-          const val = String(closerField.field_value || closerField.value || "").trim();
+          let rawVal = closerField.fieldValue || closerField.field_value || closerField.value;
+          if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
+          const val = String(rawVal || "").trim();
           if (val && val.toLowerCase() !== 'none' && val.toLowerCase() !== 'null') {
             uniqueClosers.add(val);
           }
@@ -1275,14 +1278,17 @@ app.get("/api/crm/opportunities", async (req, res) => {
         if (!customFields || !Array.isArray(customFields)) return false;
 
         const closerField = customFields.find((f: any) =>
+          String(f.id || "") === 'DPEKghcOYLZADdLcTR8Q' ||
           String(f.key || "").toLowerCase().includes('closer') ||
           String(f.name || "").toLowerCase().includes('closer') ||
           String(f.id || "").toLowerCase().includes('closer')
         );
 
         if (!closerField) return false;
-        const val = String(closerField.field_value || closerField.value || "").toLowerCase().trim();
-        if (!val) return false;
+        let rawVal = closerField.fieldValue || closerField.field_value || closerField.value;
+        if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
+        const val = String(rawVal || "").toLowerCase().trim();
+        if (!val || val === 'none' || val === 'null') return false;
 
         return val === matchUserId || val.includes(matchUserId) || matchUserId.includes(val);
       });
