@@ -1417,6 +1417,18 @@ app.post("/api/copilot/chat", async (req, res) => {
   }
 });
 
+app.get("/api/debug-env", (req, res) => {
+  res.json({
+    hasService: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasAnon: !!process.env.SUPABASE_ANON_KEY,
+    hasViteAnon: !!process.env.VITE_SUPABASE_ANON_KEY,
+    hasUrl: !!process.env.SUPABASE_URL,
+    hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+    supabaseClientUrl: (supabase as any)?.supabaseUrl,
+    supabaseClientKeyLength: (supabase as any)?.supabaseKey?.length
+  });
+});
+
 app.get("/api/debug-custom", async (req, res) => {
   const { data: conns } = await supabase.from('ghl_connections').select('location_id, updated_at');
   const { data: opps } = await supabase.from('opportunities').select('location_id, raw, custom_fields').limit(20);
