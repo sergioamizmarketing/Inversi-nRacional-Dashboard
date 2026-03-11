@@ -94,7 +94,7 @@ export default function App() {
       fetchMetadata();
       fetchOpportunities();
     }
-  }, [connection?.id, filters.startDate, filters.endDate, filters.pipelineId, filters.userId, fetchMetrics, fetchMetadata, fetchOpportunities]);
+  }, [connection?.location_id, filters.startDate, filters.endDate, filters.pipelineId, filters.userId, fetchMetrics, fetchMetadata, fetchOpportunities]);
 
   // Real-time Database Listener
   useEffect(() => {
