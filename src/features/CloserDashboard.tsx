@@ -96,10 +96,13 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
     
     let origin = 'Otro';
     if (originField) {
-      const val = String(originField.fieldValue || originField.value || "").toLowerCase();
+      let rawVal = originField.fieldValue || originField.fieldValueString || originField.field_value || originField.value;
+      if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
+      const val = String(rawVal || "").toLowerCase().trim();
+      
       if (val.includes('hotmart')) origin = 'Hotmart';
       else if (val.includes('transferencia')) origin = 'Transferencia';
-      else if (val) origin = val.charAt(0).toUpperCase() + val.slice(1);
+      else if (val && val !== 'none' && val !== 'null') origin = val.charAt(0).toUpperCase() + val.slice(1);
     }
 
     if (!acc[origin]) acc[origin] = { count: 0, revenue: 0 };
