@@ -100,8 +100,8 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
   const openValue = openOpps.reduce((acc, o) => acc + Number(o.value || 0), 0);
   const projectedRevenue = openValue * (totalSaleRate / 100);
 
-  // 5. Origen de las Ventas (Solo para Pagos Completos)
-  const wonOpps = userOpps.filter(o => o.stage_id === STAGES.PAGO_COMPLETO);
+  // 5. Origen de las Ventas (Basado en el status 'won' para coincidir con la tabla)
+  const wonOpps = userOpps.filter(o => o.status === 'won');
   const originStats = wonOpps.reduce((acc: any, o) => {
     // Handle both array and object structures
     const rawCFs = o.custom_fields || o.raw?.customFields;
@@ -148,6 +148,13 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
       if (val.includes('hotmart')) origin = 'Hotmart';
       else if (val.includes('transferencia')) origin = 'Transferencia';
       else origin = val.charAt(0).toUpperCase() + val.slice(1);
+    }
+
+    // Ultimate Fallback: Scour the raw JSON for the keywords if still 'Otro'
+    if (origin === 'Otro' && o.raw) {
+      const rawStr = JSON.stringify(o.raw).toLowerCase();
+      if (rawStr.includes('hotmart')) origin = 'Hotmart';
+      else if (rawStr.includes('transferencia')) origin = 'Transferencia';
     }
 
     if (!acc[origin]) acc[origin] = { count: 0, revenue: 0 };
