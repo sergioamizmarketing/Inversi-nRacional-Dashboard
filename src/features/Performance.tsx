@@ -12,25 +12,26 @@ export const Performance = () => {
 
     const performanceData = (Array.isArray(customClosers) ? customClosers : []).map((closerName: string) => {
         const isCloser = (o: any) => {
-            // Support both mapped custom_fields (if we ever did) or raw GHL payload
-            const customFields = Array.isArray(o.raw?.customFields) ? o.raw.customFields : (Array.isArray(o.custom_fields) ? o.custom_fields : []);
-            if (!customFields || !Array.isArray(customFields)) return false;
+            const rawCFs = o.custom_fields || o.raw?.customFields;
+            let val = '';
 
-            const closerField = customFields.find((f: any) =>
-                String(f.id || "") === 'DPEKghcOYLZADdLcTR8Q' ||
-                String(f.key || "").toLowerCase().includes('closer') ||
-                String(f.name || "").toLowerCase().includes('closer') ||
-                String(f.id || "").toLowerCase().includes('closer')
-            );
-
-            if (!closerField) return false;
-
-            let rawVal = closerField.fieldValue || closerField.fieldValueString || closerField.field_value || closerField.value;
-            if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
-            const val = String(rawVal || "").toLowerCase().trim();
-            if (!val) return false;
-
-            // Provide a direct string match since val and closerName are both strings
+            if (Array.isArray(rawCFs)) {
+                const field = rawCFs.find((f: any) => 
+                    String(f.id || f.fieldId || "") === 'DPEKghcOYLZADdLcTR8Q' ||
+                    String(f.name || f.label || "").toLowerCase().includes('closer')
+                );
+                if (field) {
+                    let rv = field.fieldValue || field.value || field.fieldValueString;
+                    if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+                    val = String(rv || "").toLowerCase().trim();
+                }
+            } else if (rawCFs && typeof rawCFs === 'object') {
+                const key = Object.keys(rawCFs).find(k => k === 'DPEKghcOYLZADdLcTR8Q' || k.toLowerCase().includes('closer'));
+                if (key) {
+                    val = String((rawCFs as any)[key] || "").toLowerCase().trim();
+                }
+            }
+            
             return val === closerName.toLowerCase().trim();
         };
 

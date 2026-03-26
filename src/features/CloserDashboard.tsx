@@ -40,16 +40,27 @@ const STAGES = {
 export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, opportunities, onBack, periodLabel = "Periodo Seleccionado" }) => {
   // Filter opportunities for this closer
   const userOpps = opportunities.filter(o => {
-    const customFields = Array.isArray(o.raw?.customFields) ? o.raw.customFields : (Array.isArray(o.custom_fields) ? o.custom_fields : []);
-    const closerField = customFields.find((f: any) =>
-        String(f.id || "") === 'DPEKghcOYLZADdLcTR8Q' ||
-        String(f.key || "").toLowerCase().includes('closer') ||
-        String(f.name || "").toLowerCase().includes('closer')
-    );
-    if (!closerField) return false;
-    let rawVal = closerField.fieldValue || closerField.fieldValueString || closerField.field_value || closerField.value;
-    if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
-    return String(rawVal || "").toLowerCase().trim() === closerName.toLowerCase().trim();
+    const rawCFs = o.custom_fields || o.raw?.customFields;
+    let val = '';
+
+    if (Array.isArray(rawCFs)) {
+      const field = rawCFs.find((f: any) => 
+        String(f.id || f.fieldId || "") === 'DPEKghcOYLZADdLcTR8Q' ||
+        String(f.name || f.label || "").toLowerCase().includes('closer')
+      );
+      if (field) {
+        let rv = field.fieldValue || field.value || field.fieldValueString;
+        if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+        val = String(rv || "").toLowerCase().trim();
+      }
+    } else if (rawCFs && typeof rawCFs === 'object') {
+      const key = Object.keys(rawCFs).find(k => k === 'DPEKghcOYLZADdLcTR8Q' || k.toLowerCase().includes('closer'));
+      if (key) {
+        val = String((rawCFs as any)[key] || "").toLowerCase().trim();
+      }
+    }
+    
+    return val === closerName.toLowerCase().trim();
   });
 
   // 1. Volumen de Leads
@@ -87,22 +98,33 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
   // 5. Origen de la Venta (Solo para Pagos Completos)
   const wonOpps = userOpps.filter(o => o.stage_id === STAGES.PAGO_COMPLETO);
   const originStats = wonOpps.reduce((acc: any, o) => {
-    const customFields = Array.isArray(o.raw?.customFields) ? o.raw.customFields : (Array.isArray(o.custom_fields) ? o.custom_fields : []);
-    const originField = customFields.find((f: any) => 
-      String(f.id || "") === 'dQIKOJqcDR8uYOcoZGPt' ||
-      String(f.name || "").toLowerCase().includes('origen') || 
-      String(f.label || "").toLowerCase().includes('origen')
-    );
+    // Handle both array and object structures
+    const rawCFs = o.custom_fields || o.raw?.customFields;
+    let val = '';
+
+    if (Array.isArray(rawCFs)) {
+      const field = rawCFs.find((f: any) => 
+        String(f.id || f.fieldId || "") === 'dQIKOJqcDR8uYOcoZGPt' ||
+        String(f.name || f.label || "").toLowerCase().includes('origen')
+      );
+      if (field) {
+        let rv = field.fieldValue || field.value || field.fieldValueString;
+        if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+        val = String(rv || "").toLowerCase().trim();
+      }
+    } else if (rawCFs && typeof rawCFs === 'object') {
+      // If it's a flat object { "FIELD_ID": "VALUE" }
+      const key = Object.keys(rawCFs).find(k => k === 'dQIKOJqcDR8uYOcoZGPt' || k.toLowerCase().includes('origen'));
+      if (key) {
+        val = String((rawCFs as any)[key] || "").toLowerCase().trim();
+      }
+    }
     
     let origin = 'Otro';
-    if (originField) {
-      let rawVal = originField.fieldValue || originField.fieldValueString || originField.field_value || originField.value;
-      if (Array.isArray(rawVal) && rawVal.length > 0) rawVal = rawVal[0];
-      const val = String(rawVal || "").toLowerCase().trim();
-      
+    if (val && val !== 'none' && val !== 'null') {
       if (val.includes('hotmart')) origin = 'Hotmart';
       else if (val.includes('transferencia')) origin = 'Transferencia';
-      else if (val && val !== 'none' && val !== 'null') origin = val.charAt(0).toUpperCase() + val.slice(1);
+      else origin = val.charAt(0).toUpperCase() + val.slice(1);
     }
 
     if (!acc[origin]) acc[origin] = { count: 0, revenue: 0 };
