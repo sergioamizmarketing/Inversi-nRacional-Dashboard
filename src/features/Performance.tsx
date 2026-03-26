@@ -88,30 +88,37 @@ export const Performance = () => {
         return <CloserDashboard closerName={selectedCloser} opportunities={safeOpps} onBack={() => setSelectedCloser(null)} periodLabel={label} />;
     }
 
+    const diagnosisPanel = (
+        <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-mono overflow-auto max-h-40 mb-6">
+            <p className="font-bold mb-1 text-slate-500 uppercase tracking-widest text-[10px]">Diagnóstico Directo:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <span className="text-indigo-500">customClosers ({customClosers?.length || 0}):</span>
+                    <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(customClosers, null, 2)}</pre>
+                </div>
+                <div>
+                    <span className="text-emerald-500">Ejemplo Opp 0 CFs:</span>
+                    <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(safeOpps?.[0]?.custom_fields || safeOpps?.[0]?.raw?.customFields, null, 2)}</pre>
+                </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-amber-500">Total Opps Frontend:</span> {safeOpps.length} | <span className="text-rose-500">PerfData:</span> {performanceData.length}
+            </div>
+        </div>
+    );
+
     if (performanceData.length === 0) {
-        return <EmptyState title="Sin actividad de equipo" description="No hay métricas de rendimiento para los closers en el periodo seleccionado." />;
+        return (
+            <div className="space-y-6">
+                {diagnosisPanel}
+                <EmptyState title="Sin actividad de equipo" description="No hay métricas de rendimiento para los closers en el periodo seleccionado." />
+            </div>
+        );
     }
 
     return (
         <div className="space-y-6">
-            {/* Diagnosis Panel (Solo para depuración) */}
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-mono overflow-auto max-h-40">
-                <p className="font-bold mb-1 text-slate-500 uppercase tracking-widest text-[10px]">Diagnóstico Directo:</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <span className="text-indigo-500">customClosers ({customClosers?.length || 0}):</span>
-                        <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(customClosers, null, 2)}</pre>
-                    </div>
-                    <div>
-                        <span className="text-emerald-500">Ejemplo Opp 0 CFs:</span>
-                        <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(safeOpps?.[0]?.custom_fields || safeOpps?.[0]?.raw?.customFields, null, 2)}</pre>
-                    </div>
-                </div>
-                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <span className="text-amber-500">Total Opps Frontend:</span> {safeOpps.length}
-                </div>
-            </div>
-
+            {diagnosisPanel}
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="p-6 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
