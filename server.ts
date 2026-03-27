@@ -23,6 +23,18 @@ const supabase = createClient(
 
 app.use(express.json());
 
+// --- In-App Sync Diagnostics ---
+let syncLogs: string[] = ["Servicio de diagnóstico iniciado..."];
+const logToSync = (msg: string) => {
+  const timestamp = new Date().toLocaleTimeString();
+  syncLogs.unshift(`[${timestamp}] ${msg}`);
+  if (syncLogs.length > 50) syncLogs.pop();
+};
+
+app.get("/api/debug/sync-logs", (req, res) => {
+  res.json({ logs: syncLogs });
+});
+
 app.get("/api/debug-env", (req, res) => {
   res.json({
     hasService: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -104,6 +116,8 @@ async function fetchLatestNote(locationId: string, accessToken: string, contactI
       ? `${baseURL}/contacts/${contactId}/notes` 
       : `${baseURL}/contacts/${contactId}/notes`;
     
+    logToSync(`Buscando notas en GHL: Contacto ${contactId}`);
+    
     const headers: any = {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/json'
@@ -113,18 +127,21 @@ async function fetchLatestNote(locationId: string, accessToken: string, contactI
       headers['Version'] = '2021-07-28';
     }
 
-    const response = await axios.get(url, { headers });
+    const response = await axios.get(url, { headers, timeout: 5000 });
 
-    // GHL V2 gives both 'body' (HTML) and 'bodyText' (Plain)
-    const notes = isV1 ? (response.data.notes || []) : (response.data.notes || []);
+    const notes = response.data.notes || [];
     if (notes.length > 0) {
+      logToSync(`✅ Notas encontradas (${notes.length}) para ${contactId}.`);
       // Prioritize bodyText (clean text) over body (HTML)
       return notes[0].bodyText || notes[0].body || null;
     }
+    logToSync(`ℹ️ No se encontraron notas para ${contactId}.`);
     return null;
   } catch (err: any) {
     if (err.response?.status !== 404) {
-      console.warn(`Failed to fetch notes for contact ${contactId}:`, err.response?.data || err.message);
+      const errorMsg = err.response?.data?.message || err.message;
+      logToSync(`❌ ERROR GHL para ${contactId}: ${errorMsg}`);
+      console.warn(`[Notes Sync] Failed for contact ${contactId}:`, err.response?.data || err.message);
     }
     return null;
   }
@@ -867,23 +884,31 @@ app.get("/api/crm/sync", async (req, res) => {
 
     // 2. Fetch latest notes for opportunities to show closer status
     // We do this in small batches to avoid hitting rate limits
-    console.log(`Fetching notes for ${allOpps.length} opportunities...`);
+    logToSync(`Sincronizando notas de ${allOpps.length} oportunidades...`);
     // 'connection' is already defined at line 622 in this scope
-    if (!connection) throw new Error("Connection not found for notes sync");
+    if (!connection) {
+      logToSync(`❌ Error: Conexión no encontrada.`);
+      throw new Error("Connection not found for notes sync");
+    }
 
     const batchSize = 10;
+    let notesCount = 0;
     for (let i = 0; i < allOpps.length; i += batchSize) {
       const batch = allOpps.slice(i, i + batchSize);
       await Promise.all(batch.map(async (opp) => {
         const contactId = opp.contactId || opp.contact?.id;
         if (contactId) {
           const note = await fetchLatestNote(locationId as string, connection.access_token, contactId, isV1, baseURL);
-          if (note) opp.lastNote = note;
+          if (note) {
+            opp.lastNote = note;
+            notesCount++;
+          }
         }
       }));
       // Small sleep between batches to be nice to GHL
-      if (allOpps.length > batchSize) await new Promise(resolve => setTimeout(resolve, 100));
+      if (allOpps.length > batchSize) await new Promise(resolve => setTimeout(resolve, 200));
     }
+    logToSync(`✅ Sincronización de notas terminada: ${notesCount} notas aplicadas.`);
 
     const upsertData = allOpps.map(opp => {
       let createdAtDate = new Date();

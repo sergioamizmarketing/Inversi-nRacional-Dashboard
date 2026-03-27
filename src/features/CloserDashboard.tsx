@@ -12,7 +12,8 @@ import {
   XCircle,
   FileText,
   Mail,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -42,7 +43,27 @@ const STAGES = {
 
 export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, opportunities, onBack, periodLabel = "Periodo Seleccionado" }) => {
   const [selectedPhase, setSelectedPhase] = React.useState<any | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
+  const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
   
+  const fetchLogs = async () => {
+    try {
+      const resp = await fetch('/api/debug/sync-logs');
+      const data = await resp.json();
+      setSyncLogs(data.logs || []);
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+    }
+  };
+
+  React.useEffect(() => {
+    if (showDiagnostics) {
+      fetchLogs();
+      const interval = setInterval(fetchLogs, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [showDiagnostics]);
+
   // Filter opportunities for this closer
   const userOpps = opportunities.filter(o => {
     const rawCFs = o.custom_fields || o.raw?.customFields;
@@ -332,8 +353,17 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
               Ratios de conversión · Pipeline · Estado de leads · <span className="text-indigo-400/80">{periodLabel.toUpperCase()}</span>
             </p>
           </div>
-          <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/30">
-            <Target className="text-indigo-400 w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowDiagnostics(true)}
+              className="w-10 h-10 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-xl flex items-center justify-center border border-indigo-500/20 transition-all text-indigo-400"
+              title="Diagnóstico de Sincronización"
+            >
+              <Activity className="w-5 h-5" />
+            </button>
+            <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/30">
+              <Target className="text-indigo-400 w-6 h-6" />
+            </div>
           </div>
         </div>
 
@@ -481,6 +511,60 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
           </section>
         </div>
       </div>
+      {/* Diagnostics Modal */}
+      {showDiagnostics && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-hidden">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => setShowDiagnostics(false)}
+          />
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+          >
+            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-[#0f172a]">
+              <div className="flex items-center gap-3">
+                <Activity className="w-6 h-6 text-indigo-400" />
+                <h2 className="text-xl font-black text-white uppercase tracking-widest">Diagnóstico de Sincronización</h2>
+              </div>
+              <button 
+                onClick={() => setShowDiagnostics(false)}
+                className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 bg-black/40 font-mono text-[11px] leading-relaxed">
+              {syncLogs.length === 0 ? (
+                <div className="text-slate-600 italic py-8 text-center uppercase tracking-widest text-[10px]">Esperando actividad... Pulsa "Sincronizar" para empezar.</div>
+              ) : (
+                <div className="space-y-1">
+                  {syncLogs.map((log, i) => (
+                    <div key={i} className={`py-1.5 border-b border-white/5 transition-colors ${
+                      log.includes('❌') ? 'text-rose-400 bg-rose-400/5' : 
+                      log.includes('✅') ? 'text-emerald-400' : 
+                      log.includes('ℹ️') ? 'text-sky-400' : 'text-slate-400'
+                    }`}>
+                      <span className="opacity-30 mr-2">[{i}]</span>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 bg-slate-800/50 text-center border-t border-slate-700">
+              <p className="text-slate-500 text-[9px] uppercase tracking-[0.2em] font-black">
+                Autorefresco activo cada 3 seg · Servidor: OK
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
