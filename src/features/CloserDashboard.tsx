@@ -188,9 +188,11 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
       else if (rawStr.includes('transferencia')) origin = 'Transferencia';
     }
 
-    if (!acc[origin]) acc[origin] = { count: 0, revenue: 0 };
+    if (!acc[origin]) acc[origin] = { count: 0, revenue: 0, opportunities: [] };
     acc[origin].count += 1;
     acc[origin].revenue += Number(o.value || 0);
+    // Keep reference for drill-down
+    acc[origin].opportunities.push(o);
     return acc;
   }, {});
 
@@ -198,6 +200,7 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
     name,
     count: stats.count,
     revenue: stats.revenue,
+    apps: stats.opportunities,
     percentage: salesCount > 0 ? (stats.count / salesCount) * 100 : 0
   })).sort((a, b) => b.revenue - a.revenue);
 
@@ -493,16 +496,10 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {originData.length > 0 ? originData.map((item, idx) => {
-                const itemOpps = salesSet.filter(o => {
-                  const val = String(o.raw?.source || o.raw?.customFields?.['dQIKOJqcDR8uYOcoZGPt'] || "").toLowerCase();
-                  return item.name === 'Hotmart' ? val.includes('hotmart') : 
-                         item.name === 'Transferencia' ? val.includes('transferencia') : false;
-                });
-
                 return (
                   <div 
                     key={idx} 
-                    onClick={() => setSelectedPhase({ title: `Ventas via ${item.name}`, apps: itemOpps, color: item.name === 'Hotmart' ? 'bg-orange-500' : 'bg-blue-500' })}
+                    onClick={() => setSelectedPhase({ title: `Ventas via ${item.name}`, apps: item.apps, color: item.name === 'Hotmart' ? 'bg-orange-500' : 'bg-blue-500' })}
                     className="bg-slate-800/40 border border-slate-700/50 p-5 rounded-2xl relative overflow-hidden group cursor-pointer hover:border-indigo-500/50 transition-all active:scale-[0.98]"
                   >
                     <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 blur-2xl ${item.name === 'Hotmart' ? 'bg-orange-500' : item.name === 'Transferencia' ? 'bg-blue-500' : 'bg-slate-500'}`} />
