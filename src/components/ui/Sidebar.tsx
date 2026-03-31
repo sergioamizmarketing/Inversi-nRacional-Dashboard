@@ -72,22 +72,6 @@ export const Sidebar = ({ navigations }: { navigations: any[] }) => {
                 {navigations.map(nav => (
                     <SidebarItem key={nav.to} {...nav} collapsed={!sidebarOpen} />
                 ))}
-                {user?.role?.toLowerCase().trim() === 'admin' && (
-                    <>
-                        <SidebarItem
-                            icon={ShieldCheck}
-                            label="Gestión de Usuarios"
-                            to="/admin/users"
-                            collapsed={!sidebarOpen}
-                        />
-                        <SidebarItem
-                            icon={Settings}
-                            label="Ajustes de Integración"
-                            to="/settings"
-                            collapsed={!sidebarOpen}
-                        />
-                    </>
-                )}
             </nav>
 
             <div className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50">

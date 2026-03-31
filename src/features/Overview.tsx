@@ -42,22 +42,32 @@ export const Overview = () => {
         // 1. Opportunity Status -> count
         const openCount = safeOpps.filter(o => o.status === 'open').length;
         const wonCount = safeOpps.filter(o => o.status === 'won').length;
+        const lostCount = safeOpps.filter(o => o.status === 'lost').length;
+        const abandonedCount = safeOpps.filter(o => o.status === 'abandoned').length;
+
         const statusData = [
             { name: 'Open', value: openCount, fill: STATUS_COLORS.open },
-            { name: 'Won', value: wonCount, fill: STATUS_COLORS.won }
+            { name: 'Won', value: wonCount, fill: STATUS_COLORS.won },
+            { name: 'Lost', value: lostCount, fill: STATUS_COLORS.lost },
+            { name: 'Abandoned', value: abandonedCount, fill: STATUS_COLORS.abandoned }
         ];
 
         // 2. Opportunity Value -> sum
         const openValue = safeOpps.filter(o => o.status === 'open').reduce((sum, o) => sum + Number(o.value || 0), 0);
         const wonValue = safeOpps.filter(o => o.status === 'won').reduce((sum, o) => sum + Number(o.value || 0), 0);
+        const lostValue = safeOpps.filter(o => o.status === 'lost').reduce((sum, o) => sum + Number(o.value || 0), 0);
+        const abandonedValue = safeOpps.filter(o => o.status === 'abandoned').reduce((sum, o) => sum + Number(o.value || 0), 0);
+
         const valueData = [
             { name: 'Open', value: openValue, fill: STATUS_COLORS.open },
-            { name: 'Won', value: wonValue, fill: STATUS_COLORS.won }
+            { name: 'Won', value: wonValue, fill: STATUS_COLORS.won },
+            { name: 'Lost', value: lostValue, fill: STATUS_COLORS.lost },
+            { name: 'Abandoned', value: abandonedValue, fill: STATUS_COLORS.abandoned }
         ];
-        const totalRevenue = wonValue + openValue;
+        const totalRevenue = wonValue + openValue + lostValue + abandonedValue;
 
         // 3. Conversion Rate
-        const totalClosed = wonCount + safeOpps.filter(o => o.status === 'lost' || o.status === 'abandoned').length;
+        const totalClosed = wonCount + lostCount + abandonedCount;
         const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
 
         // 4 & 5. Funnel & Stage Distribution
@@ -118,7 +128,7 @@ export const Overview = () => {
 
         return {
             statusData,
-            totalStatus: openCount + wonCount,
+            totalStatus: openCount + wonCount + lostCount + abandonedCount,
             valueData,
             totalRevenue,
             winRate,
