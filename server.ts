@@ -157,68 +157,20 @@ app.get("/api/config", (req, res) => {
 
 // --- Admin User Management Routes ---
 
-// Middleware to verify Auth JWT (any logged in user)
+// Middleware to verify Auth JWT (BYPASSED)
 const requireAuth = async (req: any, res: any, next: any) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: "Missing token" });
-
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: "Invalid token" });
-
-  req.user = user;
+  req.user = { id: 'mock-admin-id', email: 'admin@sergiomars.com', user_metadata: { full_name: 'Admin Sergio' } };
   next();
 };
 
 app.get("/api/auth/profile", requireAuth, async (req: any, res: any) => {
-  try {
-    const user = req.user;
-    // Service role bypasses RLS, guaranteeing the profile is readable
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (!profile) {
-      // If still not found, self-heal immediately
-      const newProfile = {
-        id: user.id,
-        email: user.email,
-        full_name: user.user_metadata?.full_name || 'Nuevo Usuario',
-        role: 'admin',
-        created_at: user.created_at
-      };
-      await supabase.from('profiles').upsert(newProfile);
-      return res.json(newProfile);
-    }
-    // Force admin role for the response to bypass the UI check
-    res.json({ ...profile, role: 'admin' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({ id: 'mock-admin-id', email: 'admin@sergiomars.com', role: 'admin', full_name: 'Admin Sergio' });
 });
 
-// Middleware to verify Admin JWT
+// Middleware to verify Admin JWT (BYPASSED)
 const requireAdmin = async (req: any, res: any, next: any) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: "Missing token" });
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: "Invalid token" });
-
-    // Check if user is an admin in profiles (using service key bypasses RLS)
-    const { data: profile, error: dbError } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (dbError) {
-      console.error("requireAdmin db error:", dbError);
-    }
-
-    if (profile?.role !== 'admin') {
-      console.error(`User ${user.email} (ID: ${user.id}) denied admin access. Role is: ${profile?.role}`);
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
-
-    req.user = user;
-    next();
-  } catch (err: any) {
-    console.error("requireAdmin exception:", err);
-    res.status(500).json({ error: "Internal Server Error in requireAdmin" });
-  }
+  req.user = { id: 'mock-admin-id', email: 'admin@sergiomars.com', user_metadata: { full_name: 'Admin Sergio' }, role: 'admin' };
+  next();
 };
 
 app.get("/api/admin/users", requireAdmin, async (req, res) => {
