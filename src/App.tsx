@@ -226,7 +226,7 @@ export default function App() {
               <Route path="/performance" element={<Performance />} />
               <Route path="/targets" element={<Targets />} />
               <Route path="/copilot" element={<Copilot />} />
-              {user.role?.toLowerCase().trim() === 'admin' && (
+              {user?.role?.toLowerCase().trim() === 'admin' && (
                 <>
                   <Route path="/admin/users" element={<AdminUsers />} />
                   <Route path="/settings" element={
