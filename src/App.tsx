@@ -31,7 +31,9 @@ const navigations = [
   { icon: LayoutDashboard, label: 'Resumen', to: '/overview' },
   { icon: Users, label: 'Rendimiento', to: '/performance' },
   { icon: Target, label: 'Objetivos', to: '/targets' },
-  { icon: MessageSquare, label: 'Copilot', to: '/copilot' }
+  { icon: MessageSquare, label: 'Copilot', to: '/copilot' },
+  { icon: Users, label: 'Gestión de Usuarios', to: '/admin/users' },
+  { icon: Settings, label: 'Ajustes de Integración', to: '/settings' }
 ];
 
 export default function App() {
