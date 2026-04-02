@@ -1,8 +1,11 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+import { GoogleGenAI } from "@google/genai";
 
 export async function getCopilotResponse(query: string, context: any) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY no está configurada en el servidor");
+  }
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `User Query: ${query}\n\nContext Data: ${JSON.stringify(context)}`,
