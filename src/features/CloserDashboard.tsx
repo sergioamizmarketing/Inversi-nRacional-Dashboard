@@ -109,12 +109,15 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
 
   // 1. Volumen de Leads
   const totalLeads = userOpps.length;
+  // Use both status and stage for maximum accuracy
+  const wonOpps = userOpps.filter(o => o.status === 'won' || o.stage_id === STAGES.PAGO_COMPLETO);
+  const salesCount = wonOpps.length;
+  const salesSet = wonOpps; // For compatibility with existing logic
+
   const contactedSet = userOpps.filter(o => ![STAGES.NUEVO, STAGES.INTENTO, STAGES.SLA].includes(o.stage_id));
   const contactedCount = contactedSet.length;
   const appointmentsSet = userOpps.filter(o => o.stage_id === STAGES.CITA);
   const appointmentsCount = appointmentsSet.length;
-  const salesSet = userOpps.filter(o => o.stage_id === STAGES.PAGO_COMPLETO);
-  const salesCount = salesSet.length;
 
   // 2. Ratios
   const contactRate = totalLeads > 0 ? (contactedCount / totalLeads) * 100 : 0;
@@ -126,9 +129,9 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
   const closeFollowUp = closeFollowUpSet.length;
   const longFollowUpSet = userOpps.filter(o => o.stage_id === STAGES.SEGUIM_LEJANO);
   const longFollowUp = longFollowUpSet.length;
-  const discardedSet = userOpps.filter(o => [STAGES.DESCARTADO, STAGES.NO_CUALIFICA].includes(o.stage_id));
+  const discardedSet = userOpps.filter(o => o.status === 'lost' || o.status === 'abandoned' || [STAGES.DESCARTADO, STAGES.NO_CUALIFICA].includes(o.stage_id));
   const discardedCount = discardedSet.length;
-  const totalRevenue = salesSet.reduce((acc, o) => acc + Number(o.value || 0), 0);
+  const totalRevenue = wonOpps.reduce((acc, o) => acc + Number(o.value || 0), 0);
 
   // 4. Métricas Avanzadas
   const failedAttempts = userOpps.filter(o => [STAGES.INTENTO, STAGES.SLA].includes(o.stage_id)).length;
@@ -145,7 +148,6 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
   const projectedRevenue = openValue * (totalSaleRate / 100);
 
   // 5. Origen de las Ventas (Basado en la etapa 'Pago Completo' para coherencia total)
-  const wonOpps = salesSet;
   const originStats = wonOpps.reduce((acc: any, o) => {
     // Handle both array and object structures
     const rawCFs = o.custom_fields || o.raw?.customFields;
