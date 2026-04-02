@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import axios from "axios";
 import { createClient } from "@supabase/supabase-js";
+import { getCopilotResponse } from "./src/services/geminiService";
 
 dotenv.config();
 
@@ -35,17 +36,6 @@ app.get("/api/debug/sync-logs", (req, res) => {
   res.json({ logs: syncLogs });
 });
 
-app.get("/api/debug-env", (req, res) => {
-  res.json({
-    hasService: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    hasAnon: !!process.env.SUPABASE_ANON_KEY,
-    hasViteAnon: !!process.env.VITE_SUPABASE_ANON_KEY,
-    hasUrl: !!process.env.SUPABASE_URL,
-    hasViteUrl: !!process.env.VITE_SUPABASE_URL,
-    supabaseClientUrl: (supabase as any)?.supabaseUrl,
-    supabaseClientKeyLength: (supabase as any)?.supabaseKey?.length
-  });
-});
 // Helper function to get and potentially refresh the GHL connection
 async function getValidConnection(locationId: string) {
   const { data: connection, error } = await supabase
@@ -183,20 +173,46 @@ const requireAuth = async (req: any, res: any, next: any) => {
 app.get("/api/auth/profile", requireAuth, async (req: any, res: any) => {
   try {
     const user = req.user;
-    // Always return an admin profile for all logged-in users to bypass UI restrictions
-    res.json({ id: user.id, email: user.email, role: 'admin', full_name: user.user_metadata?.full_name });
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', user.id)
+      .single();
+
+    if (error || !profile) {
+      // Auto-crear perfil con rol pending si no existe aún
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name || 'Nuevo Usuario',
+        role: 'pending',
+        created_at: new Date().toISOString()
+      }, { onConflict: 'id', ignoreDuplicates: true });
+      return res.json({ id: user.id, email: user.email, role: 'pending', full_name: user.user_metadata?.full_name });
+    }
+
+    res.json({ id: user.id, email: user.email, role: profile.role, full_name: profile.full_name || user.user_metadata?.full_name });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Middleware to verify Admin JWT (BYPASSED)
 const requireAdmin = async (req: any, res: any, next: any) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: "Missing token" });
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return res.status(401).json({ error: "Invalid token" });
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin') {
+    return res.status(403).json({ error: "Acceso denegado: se requiere rol de administrador" });
+  }
 
   req.user = user;
   next();
@@ -963,56 +979,6 @@ app.get("/api/crm/sync", async (req, res) => {
   }
 });
 
-// --- REAL-TIME WEBHOOK RECEIVER ---
-app.post("/api/ghl/webhook", async (req, res) => {
-  try {
-    const payload = req.body;
-    console.log("Received GHL Webhook:", payload.type || "Unknown Type", "for location:", payload.locationId || "Unknown Location");
-
-    // We only process it if it looks like an Opportunity or Pipeline update
-    if (payload.type === 'Opportunity' || payload.pipelineId) {
-      if (!payload.id || !payload.locationId) {
-        return res.status(400).json({ error: "Missing id or locationId in webhook payload" });
-      }
-
-      const oppData = {
-        id: payload.id,
-        location_id: payload.locationId,
-        contact_id: payload.contactId || null,
-        pipeline_id: payload.pipelineId,
-        stage_id: payload.pipelineStageId || payload.stageId || null,
-        owner_user_id: payload.assignedTo || null,
-        name: payload.name || "Webhook Opportunity",
-        status: (payload.status || "open").toLowerCase(),
-        value: payload.monetaryValue || payload.value || 0,
-        currency: "EUR",
-        raw: payload,
-        created_at: payload.dateAdded || new Date().toISOString(),
-        updated_at: payload.dateUpdated || new Date().toISOString(),
-      };
-
-      const { error } = await supabase.from("opportunities").upsert([oppData]);
-      if (error) {
-        console.error("Webhook Upsert Error:", error.message);
-        return res.status(500).json({ error: error.message });
-      }
-
-      // Bump the connection timestamp so the Dashboard "Sincronizado" clock updates
-      await supabase.from("ghl_connections")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("location_id", payload.locationId);
-
-      console.log(`Successfully synced opportunity via webhook: ${payload.id}`);
-      return res.json({ success: true, message: "Opportunity upserted via webhook" });
-    }
-
-    // Acknowledge other webhook types safely
-    res.json({ success: true, message: "Webhook received but ignored (not an opportunity)" });
-  } catch (err: any) {
-    console.error("Webhook Internal Error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 app.get("/api/metrics/overview", async (req, res) => {
   const { locationId, startDate, endDate, pipelineId, userId, source } = req.query;
@@ -1037,34 +1003,20 @@ app.get("/api/metrics/overview", async (req, res) => {
     try {
       const { data, error } = await query;
       if (error) {
-        console.warn("Supabase query error (mocking instead):", error.message);
-      } else {
-        rawOpps = data || [];
+        console.error("Supabase query error:", error.message);
+        return res.status(503).json({ error: 'DB_ERROR', message: 'Error al consultar los datos. Verifica la sincronización con GoHighLevel.' });
       }
+      rawOpps = data || [];
     } catch (err: any) {
-      console.warn("Supabase fetch failed (mocking instead):", err.message);
+      console.error("Supabase fetch failed:", err.message);
+      return res.status(503).json({ error: 'DB_ERROR', message: 'Error al conectar con la base de datos.' });
     }
 
     console.log("MARKER 2: Checked rawOpps length");
 
-    let baseOpps = rawOpps || [];
-    if (baseOpps.length === 0) {
-      const mockStatuses = ['open', 'won', 'lost', 'abandoned', 'open', 'won'];
-      for (let i = 1; i <= 60; i++) {
-        baseOpps.push({
-          id: `mock-${i}`,
-          location_id: locationId,
-          status: mockStatuses[i % mockStatuses.length],
-          value: Math.floor(Math.random() * 5000) + 1000,
-          created_at: new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(),
-          source: i % 2 === 0 ? 'vsl' : 'webinar',
-          owner_user_id: `user-${(i % 3) + 1}`,
-          pipeline_id: 'pipe-1'
-        });
-      }
-    }
+    let baseOpps = rawOpps;
 
-    console.log("MARKER 3: Generated baseOpps loop");
+    console.log("MARKER 3: baseOpps ready");
 
     // Inject mock source based on ID
     let opps = baseOpps.map(o => ({
@@ -1341,32 +1293,18 @@ app.get("/api/crm/opportunities", async (req, res) => {
     try {
       const { data, error } = await query;
       if (error) {
-        console.warn("Supabase query error (mocking instead):", error.message);
-      } else {
-        rawOpps = data || [];
+        console.error("Supabase query error:", error.message);
+        return res.status(503).json({ error: 'DB_ERROR', message: 'Error al consultar los datos. Verifica la sincronización con GoHighLevel.' });
       }
+      rawOpps = data || [];
     } catch (err: any) {
-      console.warn("Supabase fetch failed (mocking instead):", err.message);
+      console.error("Supabase fetch failed:", err.message);
+      return res.status(503).json({ error: 'DB_ERROR', message: 'Error al conectar con la base de datos.' });
     }
 
-    let baseOpps = rawOpps || [];
-    if (baseOpps.length === 0) {
-      const mockStatuses = ['open', 'won', 'lost', 'abandoned', 'open', 'won'];
-      for (let i = 1; i <= 60; i++) {
-        baseOpps.push({
-          id: `mock-${i}`,
-          location_id: locationId,
-          status: mockStatuses[i % mockStatuses.length],
-          value: Math.floor(Math.random() * 5000) + 1000,
-          created_at: new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(),
-          source: i % 2 === 0 ? 'vsl' : 'webinar',
-          owner_user_id: `user-${(i % 3) + 1}`,
-          pipeline_id: 'pipe-1'
-        });
-      }
-    }
+    let baseOpps = rawOpps;
 
-    // Inject mock source based on ID
+    // Inject source based on ID
     let opps = baseOpps.map(o => ({
       ...o,
       source: o.source || ((o.id || "").toString().charCodeAt(0) % 2 === 0 ? "vsl" : "webinar")
@@ -1510,14 +1448,14 @@ app.post("/api/reports/send", async (req, res) => {
 
 // --- Copilot Endpoint ---
 
-// Removed missing import: import { getCopilotResponse } from "./src/services/geminiService";
-
-app.post("/api/copilot/chat", async (req, res) => {
+app.post("/api/copilot/chat", requireAuth, async (req, res) => {
   const { query, context } = req.body;
 
+  if (!query) return res.status(400).json({ error: "Missing query" });
+
   try {
-    // Mocking response
-    res.json({ text: "Simulated Copilot Response: Todo parece correcto." });
+    const result = await getCopilotResponse(query, context);
+    res.json(result);
   } catch (error: any) {
     console.error("Copilot Error:", error);
     res.status(500).json({ error: "Failed to get AI response" });

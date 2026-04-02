@@ -189,12 +189,10 @@ export default function App() {
       if (data.connected && data.connection) {
         setConnection(data.connection);
       } else {
-        // Automatically proceed to dashboard if no connection found
-        setConnection({ id: 'test-conn', location_id: 'test-loc' });
+        setConnection(null);
       }
     } catch (err) {
-      // Fallback
-      setConnection({ id: 'test-conn', location_id: 'test-loc' });
+      setConnection(null);
     }
   };
 
@@ -209,7 +207,7 @@ export default function App() {
     <Auth />
   );
 
-  // Note: We removed the user.role === 'pending' check here to allow immediate access.
+  if (user?.role === 'pending') return <PendingApproval />;
 
   return (
     <BrowserRouter>
