@@ -378,9 +378,14 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
             <h1 className="text-xl font-black text-white tracking-widest uppercase">
               DASHBOARD CLOSER | <span className="text-indigo-400">{closerName.toUpperCase()}</span>
             </h1>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-tighter mt-1 opacity-70">
-              Ratios de conversión · Pipeline · Estado de leads · <span className="text-indigo-400/80">{periodLabel.toUpperCase()}</span>
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-black uppercase tracking-widest">
+                Pipeline: {activePipeline?.name || 'Cargando...'}
+              </span>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-tighter opacity-70">
+                · {periodLabel.toUpperCase()}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button 
