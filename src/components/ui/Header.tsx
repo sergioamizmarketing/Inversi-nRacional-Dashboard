@@ -1,7 +1,8 @@
 import React from 'react';
 import { Sun, Moon, Clock, RefreshCw, Filter, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow, isToday, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
     const {
@@ -24,6 +25,19 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
     } = useStore();
 
     const [syncing, setSyncing] = React.useState(false);
+
+    const getSyncStatus = () => {
+        if (!connection?.updated_at) return { label: 'Nunca', color: 'bg-slate-400', title: 'Sin sincronización' };
+        const date = parseISO(connection.updated_at);
+        const minutesAgo = (Date.now() - date.getTime()) / 60000;
+        const label = isToday(date)
+            ? `hace ${formatDistanceToNow(date, { locale: es })}`
+            : format(date, "d MMM HH:mm", { locale: es });
+        const color = minutesAgo < 30 ? 'bg-emerald-400' : minutesAgo < 120 ? 'bg-amber-400' : 'bg-red-400';
+        const title = minutesAgo < 30 ? 'Datos frescos' : minutesAgo < 120 ? 'Sincronización hace más de 30 min' : 'Datos posiblemente desactualizados';
+        return { label, color, title };
+    };
+    const syncStatus = getSyncStatus();
 
     const getActiveTabName = () => {
         const path = window.location.pathname.toLowerCase();
@@ -86,9 +100,10 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
                     </button>
 
                     <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md px-4 py-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 shadow-sm">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" title={syncStatus.title}>
+                            <span className={`w-2 h-2 rounded-full ${syncStatus.color} animate-pulse`} />
                             <Clock className="w-4 h-4 text-indigo-500" />
-                            <span className="hidden sm:inline">Sincronizado:</span> {connection?.updated_at ? format(new Date(connection.updated_at), 'HH:mm') : 'Nunca'}
+                            <span className="hidden sm:inline">Sync:</span> {syncStatus.label}
                         </div>
                         <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
                         <div className="text-xs text-slate-400 font-mono hidden md:block">

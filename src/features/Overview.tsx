@@ -13,6 +13,17 @@ import { es } from 'date-fns/locale';
 const COLORS = ['#38bdf8', '#fbbf24', '#a855f7', '#818cf8', '#6366f1', '#4ade80', '#f472b6', '#f87171'];
 const STATUS_COLORS = { open: '#38bdf8', won: '#4ade80', lost: '#f87171', abandoned: '#94a3b8' };
 
+const Delta = ({ current, prev }: { current: number; prev: number }) => {
+    if (!prev || prev === 0) return null;
+    const pct = ((current - prev) / prev) * 100;
+    const isUp = pct >= 0;
+    return (
+        <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-1.5 py-0.5 rounded-md ${isUp ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
+            {isUp ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%
+        </span>
+    );
+};
+
 const CustomTooltip = ({ active, payload, isCurrency = false }: any) => {
     if (active && payload && payload.length) {
         return (
@@ -166,6 +177,9 @@ export const Overview = () => {
     }
 
     const { statusData, totalStatus, valueData, totalRevenue, winRate, wonValue, stageData, totalOpenInPipe } = chartData;
+    const prevRevenue = metrics?.prevRevenue ?? 0;
+    const prevTotalOpps = metrics?.prevTotalOpps ?? 0;
+    const prevWinRate = metrics?.prevWinRate ?? 0;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
@@ -221,7 +235,10 @@ export const Overview = () => {
 
                 {/* 1. Opportunity Status */}
                 <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm flex flex-col items-center">
-                    <h3 className="font-bold text-slate-900 dark:text-white w-full text-left mb-2 text-sm">Opportunity Status</h3>
+                    <div className="flex justify-between items-center w-full mb-2">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-sm">Opportunity Status</h3>
+                        <Delta current={totalStatus} prev={prevTotalOpps} />
+                    </div>
                     <div className="w-full h-52 relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -251,7 +268,10 @@ export const Overview = () => {
                     </div>
                     <div className="text-center mt-2 border-t border-slate-100 dark:border-slate-700/50 pt-3">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Total Revenue</p>
-                        <p className="text-xl font-black text-slate-900 dark:text-white">€{totalRevenue.toLocaleString()}</p>
+                        <div className="flex items-center justify-center gap-2">
+                            <p className="text-xl font-black text-slate-900 dark:text-white">€{totalRevenue.toLocaleString()}</p>
+                            <Delta current={wonValue} prev={prevRevenue} />
+                        </div>
                     </div>
                 </div>
 
@@ -270,7 +290,10 @@ export const Overview = () => {
                     </div>
                     <div className="text-center mt-3 w-full">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Won Revenue</p>
-                        <p className="text-xl font-black text-slate-900 dark:text-white">€{wonValue.toLocaleString()}</p>
+                        <div className="flex items-center justify-center gap-2">
+                            <p className="text-xl font-black text-slate-900 dark:text-white">€{wonValue.toLocaleString()}</p>
+                            <Delta current={winRate} prev={prevWinRate} />
+                        </div>
                     </div>
                 </div>
             </div>

@@ -44,17 +44,6 @@ async function getValidConnection(locationId: string) {
     .eq("location_id", locationId)
     .single();
 
-  // EMERGENCY BYPASS: Handle test location for smooth demo/dev
-  if (locationId === 'test-loc') {
-    return {
-      id: 'test-conn-id',
-      location_id: 'test-loc',
-      access_token: process.env.GHL_API_KEY || 'test-token',
-      refresh_token: 'internal',
-      updated_at: new Date().toISOString()
-    };
-  }
-
   if (error || !connection) return null;
 
   // Check if token is internal/V1 or already invalid
@@ -1073,6 +1062,34 @@ app.get("/api/metrics/overview", async (req, res) => {
 
     const winRate = totalOpps > 0 ? (wonOpps.length / totalOpps) * 100 : 0;
 
+    // Previous period comparison (same duration, shifted back)
+    let prevRevenue = 0, prevTotalOpps = 0, prevWinRate = 0;
+    if (startDate && endDate) {
+      const start = new Date(`${startDate}T00:00:00Z`);
+      const end = new Date(`${endDate}T23:59:59Z`);
+      const durationMs = end.getTime() - start.getTime();
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - durationMs);
+
+      try {
+        let prevQuery = supabase
+          .from("opportunities")
+          .select("status, value")
+          .eq("location_id", locationId)
+          .gte("created_at", prevStart.toISOString())
+          .lte("created_at", prevEnd.toISOString());
+        if (pipelineId) prevQuery = prevQuery.eq("pipeline_id", pipelineId as string);
+
+        const { data: prevData } = await prevQuery;
+        if (prevData && prevData.length > 0) {
+          const prevWon = prevData.filter((o: any) => o.status === "won");
+          prevRevenue = prevWon.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
+          prevTotalOpps = prevData.length;
+          prevWinRate = prevTotalOpps > 0 ? (prevWon.length / prevTotalOpps) * 100 : 0;
+        }
+      } catch (e) { /* previous period data is optional */ }
+    }
+
     res.json({
       totalOpps,
       wonOpps: wonOpps.length,
@@ -1080,7 +1097,10 @@ app.get("/api/metrics/overview", async (req, res) => {
       revenue,
       pipelineValue,
       winRate,
-      totalInDb
+      totalInDb,
+      prevRevenue,
+      prevTotalOpps,
+      prevWinRate
     });
   } catch (error: any) {
     console.error("Overview Endpoint Crash Error:", error.stack || error);
@@ -1253,17 +1273,13 @@ app.get("/api/crm/funnel", async (req, res) => {
     let opps: any[] = [];
     try {
       const { data, error } = await query;
-      if (!error) opps = data || [];
-    } catch (e) { }
-
-    if (opps.length === 0) {
-      return res.json({
-        "1": 150, // Leads
-        "2": 45,  // Booked
-        "3": 35,  // Show
-        "4": 25,  // Offer
-        "5": 12   // Won
-      });
+      if (error) {
+        console.error("Funnel query error:", error.message);
+        return res.status(503).json({ error: 'DB_ERROR', message: 'Error al consultar los datos del funnel.' });
+      }
+      opps = data || [];
+    } catch (e: any) {
+      return res.status(503).json({ error: 'DB_ERROR', message: 'Error al conectar con la base de datos.' });
     }
 
     const counts: Record<string, number> = {};
@@ -1482,11 +1498,6 @@ Responde en JSON con este formato exacto:
   }
 });
 
-app.get("/api/debug-custom", async (req, res) => {
-  const { data: conns } = await supabase.from('ghl_connections').select('location_id, updated_at');
-  const { data: opps } = await supabase.from('opportunities').select('location_id, raw, custom_fields').limit(20);
-  res.json({ conns, opps });
-});
 
 // --- Vite Setup ---
 
