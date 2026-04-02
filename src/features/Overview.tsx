@@ -98,12 +98,14 @@ export const Overview = () => {
                 const sOpps = pipeOpps.filter(o => o.stage_id === stage.id);
                 const sValue = sOpps.reduce((sum, o) => sum + Number(o.value || 0), 0);
                 
-                stageData.push({
-                    name: stage.name,
-                    count: sOpps.length,
-                    value: sValue,
-                    fill: COLORS[index % COLORS.length]
-                });
+                if (sOpps.length > 0) {
+                    stageData.push({
+                        name: stage.name,
+                        count: sOpps.length,
+                        value: sValue,
+                        fill: COLORS[index % COLORS.length]
+                    });
+                }
             });
         }
 

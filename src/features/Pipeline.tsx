@@ -76,7 +76,8 @@ export const Pipeline = () => {
                                 {/* Visual Pipeline Bar */}
                                 <div className="flex w-full h-4 rounded-full overflow-hidden border border-slate-100 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
                                     {stageData.map((stage: any, i: number) => {
-                                        const width = totalPipelineValue > 0 ? (stage.value / totalPipelineValue) * 100 : (100 / stageData.length);
+                                        if (stage.value === 0) return null;
+                                        const width = (stage.value / totalPipelineValue) * 100;
                                         return (
                                             <div
                                                 key={`bar-${stage.id}`}
@@ -89,7 +90,7 @@ export const Pipeline = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-4">
-                                    {stageData.map((stage: any, index: number) => (
+                                    {stageData.filter(s => s.oppCount > 0).map((stage: any, index: number) => (
                                         <div key={stage.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all group gap-4">
 
                                             <div className="flex items-center gap-4 min-w-[200px]">

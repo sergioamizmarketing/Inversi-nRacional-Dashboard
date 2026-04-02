@@ -217,7 +217,7 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
     percentage: salesCount > 0 ? (stats.count / salesCount) * 100 : 0
   })).sort((a, b) => b.revenue - a.revenue);
 
-  // Phase breakdown for table - now fully dynamic
+  // Phase breakdown for table - now fully dynamic and filtered
   const tableData = (activePipeline?.stages || []).map((stage: any, index: number) => {
     const count = userOpps.filter(o => o.stage_id === stage.id).length;
     const percentage = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
@@ -235,7 +235,7 @@ export const CloserDashboard: React.FC<CloserDashboardProps> = ({ closerName, op
       count, 
       percentage 
     };
-  });
+  }).filter(s => s.count > 0);
 
   const MetricCard = ({ label, value, sublabel, icon: Icon, colorClass, highlightValue, onClick }: any) => (
     <div 
