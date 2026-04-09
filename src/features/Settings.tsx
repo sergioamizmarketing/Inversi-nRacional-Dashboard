@@ -1,11 +1,39 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Target } from 'lucide-react';
+import { Settings as SettingsIcon, Target, Download } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { supabase } from '../lib/supabase';
 
 export const Settings = () => {
     const { addToast, connection } = useStore();
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportEvergreenWeb = async () => {
+        setExporting(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { addToast('Sesión no encontrada. Vuelve a iniciar sesión.', 'error'); return; }
+
+            const res = await fetch('/api/export/evergreen-web', {
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+            if (!res.ok) { const err = await res.json(); addToast(err.error || 'Error al exportar', 'error'); return; }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `evergreen-web-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addToast('CSV descargado correctamente.', 'success');
+        } catch (err: any) {
+            addToast('Error al exportar: ' + err.message, 'error');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const handleOAuthStart = () => {
         const width = 600;
@@ -57,6 +85,21 @@ export const Settings = () => {
             >
                 <Target className="w-5 h-5" />
                 Vincular / Actualizar GoHighLevel
+            </button>
+
+            <hr className="border-slate-200 dark:border-slate-700 my-6" />
+
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">Exportar Datos</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Descarga un CSV con las oportunidades del pipeline Evergreen Web.
+            </p>
+            <button
+                onClick={handleExportEvergreenWeb}
+                disabled={exporting}
+                className="inline-flex items-center justify-center gap-2 w-full px-8 py-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 rounded-xl font-bold border border-emerald-200 dark:border-emerald-500/30 transition-all cursor-pointer disabled:opacity-50 mb-2"
+            >
+                <Download className="w-5 h-5" />
+                {exporting ? 'Exportando...' : 'Descargar Evergreen Web CSV'}
             </button>
 
             <hr className="border-slate-200 dark:border-slate-700 my-6" />
