@@ -712,46 +712,36 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
           }
         }
       } else {
-        // V2: Fetch and sync all statuses (open, won, lost, abandoned)
-        const statuses = ['open', 'won', 'lost', 'abandoned'];
-        for (const status of statuses) {
-          console.log(`Syncing ${status} opportunities for ${locationId}...`);
-          let page = 1;
-          let hasMore = true;
-          let safetyCounter = 0;
+        // V2: Fetch all opportunities in one paginated pass (no status filter — GHL v2 doesn't support it in body)
+        let page = 1;
+        let hasMore = true;
+        let safetyCounter = 0;
 
-          while (hasMore && safetyCounter < 100) {
-            safetyCounter++;
-            try {
-              const oppRes = await ghl.post("/opportunities/search", {
-                locationId,
-                status,
-                limit: 100,
-                page: page
-              });
+        while (hasMore && safetyCounter < 100) {
+          safetyCounter++;
+          try {
+            const oppRes = await ghl.post("/opportunities/search", {
+              locationId,
+              limit: 100,
+              page
+            });
 
-              const fetchedOpps = oppRes.data.opportunities || [];
-              if (fetchedOpps.length > 0) {
-                console.log(`Found ${fetchedOpps.length} ${status} opportunities on page ${page}.`);
+            const fetchedOpps = oppRes.data.opportunities || [];
+            console.log(`V2 page ${page}: found ${fetchedOpps.length} opportunities.`);
 
-                const existingIds = new Set(allOpps.map(o => o.id));
-                const newOpps = fetchedOpps.filter((o: any) => !existingIds.has(o.id));
-                allOpps = [...allOpps, ...newOpps];
-
-                if (fetchedOpps.length === 100) {
-                  page++;
-                } else {
-                  hasMore = false;
-                }
-              } else {
-                hasMore = false;
-              }
-            } catch (err: any) {
-              const detail = err.response?.data || err.message;
-              const httpStatus = err.response?.status;
-              console.error(`Page ${page} failed for status=${status} [HTTP ${httpStatus}]:`, JSON.stringify(detail));
-              throw Object.assign(new Error(`GHL API error (${status} p.${page}): ${JSON.stringify(detail)}`), { httpStatus });
+            if (fetchedOpps.length > 0) {
+              const existingIds = new Set(allOpps.map((o: any) => o.id));
+              allOpps = [...allOpps, ...fetchedOpps.filter((o: any) => !existingIds.has(o.id))];
+              hasMore = fetchedOpps.length === 100;
+              page++;
+            } else {
+              hasMore = false;
             }
+          } catch (err: any) {
+            const detail = err.response?.data || err.message;
+            const httpStatus = err.response?.status;
+            console.error(`V2 page ${page} failed [HTTP ${httpStatus}]:`, JSON.stringify(detail));
+            throw Object.assign(new Error(`GHL API error (p.${page}): ${JSON.stringify(detail)}`), { httpStatus });
           }
         }
         console.log(`V2 Search completed. Total unique opportunities found: ${allOpps.length}`);
