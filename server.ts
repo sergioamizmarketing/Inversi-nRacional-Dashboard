@@ -1591,6 +1591,234 @@ app.get("/api/export/evergreen-web", requireAdmin, async (req: any, res: any) =>
   }
 });
 
+// --- Export Endpoints ---
+
+// Shared helpers for export
+function exportExtractOrigin(o: any): string {
+  const rawCFs = o.custom_fields || o.raw?.customFields;
+  let val = '';
+  if (Array.isArray(rawCFs)) {
+    const field = rawCFs.find((f: any) => {
+      const id = String(f.id || f.fieldId || '').toLowerCase();
+      const label = String(f.name || f.label || '').toLowerCase();
+      return id === 'dqikojqcdr8uyocozgpt' || label.includes('origen') || label.includes('fuente') || label.includes('procedencia');
+    });
+    if (field) {
+      let rv = field.fieldValue || field.value || field.fieldValueString;
+      if (typeof rv === 'string' && rv.startsWith('[') && rv.endsWith(']')) {
+        try { const p = JSON.parse(rv); if (Array.isArray(p)) rv = p; } catch {}
+      }
+      if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+      val = String(rv || '').toLowerCase().trim();
+    }
+    if (!val || ['none', 'null', 'undefined', 'otro'].includes(val)) {
+      const kw = rawCFs.find((f: any) => {
+        const v = String(f.fieldValue || f.value || f.fieldValueString || '').toLowerCase();
+        return v.includes('hotmart') || v.includes('transferencia');
+      });
+      if (kw) {
+        let rv = kw.fieldValue || kw.value || kw.fieldValueString;
+        if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+        val = String(rv || '').toLowerCase().trim();
+      }
+    }
+  } else if (rawCFs && typeof rawCFs === 'object') {
+    const key = Object.keys(rawCFs).find((k: string) =>
+      k === 'dQIKOJqcDR8uYOcoZGPt' || k.toLowerCase().includes('origen') || k.toLowerCase().includes('fuente')
+    );
+    if (key) val = String((rawCFs as any)[key] || '').toLowerCase().trim();
+  }
+  let origin = 'Otro';
+  if (val && !['none', 'null', 'undefined', 'otro'].includes(val)) {
+    if (val.includes('hotmart')) origin = 'Hotmart';
+    else if (val.includes('transferencia')) origin = 'Transferencia';
+    else origin = val.charAt(0).toUpperCase() + val.slice(1);
+  }
+  if (origin === 'Otro' && o.raw) {
+    const rawStr = JSON.stringify(o.raw).toLowerCase();
+    if (rawStr.includes('hotmart')) origin = 'Hotmart';
+    else if (rawStr.includes('transferencia')) origin = 'Transferencia';
+  }
+  return origin;
+}
+
+function exportExtractCloser(o: any): string {
+  const rawCFs = o.custom_fields || o.raw?.customFields;
+  if (Array.isArray(rawCFs)) {
+    const field = rawCFs.find((f: any) => {
+      const id = String(f.id || f.fieldId || '').toLowerCase();
+      const label = String(f.name || f.label || '').toLowerCase();
+      return id === 'dpekghcoylzaddlctr8q' || label.includes('closer');
+    });
+    if (field) {
+      let rv = field.fieldValue || field.value || field.fieldValueString;
+      if (Array.isArray(rv) && rv.length > 0) rv = rv[0];
+      return String(rv || '').trim();
+    }
+  } else if (rawCFs && typeof rawCFs === 'object') {
+    const key = Object.keys(rawCFs).find(k => k === 'DPEKghcOYLZADdLcTR8Q' || k.toLowerCase().includes('closer'));
+    if (key) return String((rawCFs as any)[key] || '').trim();
+  }
+  return '';
+}
+
+function exportExtractContact(o: any): { name: string; email: string; phone: string } {
+  const c = o.contact || o.raw?.contact || {};
+  return {
+    name:  c.name  || o.raw?.contactName  || '',
+    email: c.email || o.raw?.email        || o.email || '',
+    phone: c.phone || o.raw?.phone        || o.phone || ''
+  };
+}
+
+function sendCsv(res: any, filename: string, header: string, rows: string[]) {
+  const BOM = '\uFEFF';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(BOM + header + '\n' + rows.join('\n'));
+}
+
+function csvCell(v: any): string {
+  return `"${String(v ?? '').replace(/"/g, '""')}"`;
+}
+
+app.get("/api/export/opportunities", requireAuth, async (req: any, res: any) => {
+  const { locationId, pipelineId, status, startDate, endDate, closer, origin } = req.query;
+  try {
+    let query = supabase.from('opportunities').select('*').eq('location_id', locationId);
+    if (pipelineId)  query = query.eq('pipeline_id', pipelineId);
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (startDate)   query = query.gte('created_at', `${startDate}T00:00:00Z`);
+    if (endDate)     query = query.lte('created_at', `${endDate}T23:59:59Z`);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    let opps = data || [];
+
+    // Post-filter closer and origin (stored in raw JSON)
+    if (closer && closer !== 'all') {
+      opps = opps.filter(o => exportExtractCloser(o).toLowerCase() === String(closer).toLowerCase());
+    }
+    if (origin && origin !== 'all') {
+      opps = opps.filter(o => exportExtractOrigin(o).toLowerCase() === String(origin).toLowerCase());
+    }
+
+    // Resolve pipeline/stage names from metadata
+    const { data: pipelines } = await supabase.from('pipelines').select('id, name, raw').eq('location_id', locationId);
+    const stageMap: Record<string, string> = {};
+    const pipeMap: Record<string, string> = {};
+    (pipelines || []).forEach((p: any) => {
+      pipeMap[p.id] = p.name;
+      const stages = p.raw?.stages || p.stages || [];
+      stages.forEach((s: any) => { stageMap[s.id] = s.name; });
+    });
+
+    const header = ['ID Oportunidad','Nombre','Email Contacto','Teléfono','Pipeline','Etapa','Estado','Closer','Origen','Valor (€)','Fecha Creación'].map(csvCell).join(',');
+    const rows = opps.map(o => {
+      const contact = exportExtractContact(o);
+      return [
+        o.id,
+        o.name || '',
+        contact.email,
+        contact.phone,
+        pipeMap[o.pipeline_id] || o.pipeline_id || '',
+        stageMap[o.stage_id]   || o.stage_id   || '',
+        o.status || '',
+        exportExtractCloser(o),
+        exportExtractOrigin(o),
+        o.value || 0,
+        o.created_at ? o.created_at.split('T')[0] : ''
+      ].map(csvCell).join(',');
+    });
+
+    const filename = `oportunidades-${new Date().toISOString().split('T')[0]}.csv`;
+    sendCsv(res, filename, header, rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/export/contacts", requireAuth, async (req: any, res: any) => {
+  const { locationId, pipelineId, startDate, endDate, hasEmail, hasPhone } = req.query;
+  try {
+    let query = supabase.from('opportunities').select('*').eq('location_id', locationId);
+    if (pipelineId) query = query.eq('pipeline_id', pipelineId);
+    if (startDate)  query = query.gte('created_at', `${startDate}T00:00:00Z`);
+    if (endDate)    query = query.lte('created_at', `${endDate}T23:59:59Z`);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Deduplicate contacts by email (or by name if no email)
+    const contactMap: Record<string, any> = {};
+    (data || []).forEach(o => {
+      const c = exportExtractContact(o);
+      const key = c.email || c.name || o.id;
+      if (!contactMap[key]) {
+        contactMap[key] = { ...c, opps: 0, lastOpp: '', pipeline: o.pipeline_id, status: o.status };
+      }
+      contactMap[key].opps += 1;
+      if (!contactMap[key].lastOpp || o.created_at > contactMap[key].lastOpp) {
+        contactMap[key].lastOpp = o.created_at ? o.created_at.split('T')[0] : '';
+        contactMap[key].status = o.status;
+        contactMap[key].pipeline = o.pipeline_id;
+      }
+    });
+
+    let contacts = Object.values(contactMap);
+    if (hasEmail === 'true') contacts = contacts.filter(c => c.email);
+    if (hasPhone === 'true') contacts = contacts.filter(c => c.phone);
+
+    // Resolve pipeline names
+    const { data: pipelines } = await supabase.from('pipelines').select('id, name').eq('location_id', locationId);
+    const pipeMap: Record<string, string> = {};
+    (pipelines || []).forEach((p: any) => { pipeMap[p.id] = p.name; });
+
+    const header = ['Nombre','Email','Teléfono','Oportunidades','Última Oportunidad','Pipeline','Estado'].map(csvCell).join(',');
+    const rows = contacts.map(c => [
+      c.name,
+      c.email,
+      c.phone,
+      c.opps,
+      c.lastOpp,
+      pipeMap[c.pipeline] || c.pipeline || '',
+      c.status || ''
+    ].map(csvCell).join(','));
+
+    const filename = `contactos-${new Date().toISOString().split('T')[0]}.csv`;
+    sendCsv(res, filename, header, rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/export/count", requireAuth, async (req: any, res: any) => {
+  const { locationId, type, pipelineId, status, startDate, endDate, closer, origin } = req.query;
+  try {
+    let query = supabase.from('opportunities').select('id, custom_fields, raw', { count: 'exact' }).eq('location_id', locationId);
+    if (pipelineId) query = query.eq('pipeline_id', pipelineId);
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (startDate)  query = query.gte('created_at', `${startDate}T00:00:00Z`);
+    if (endDate)    query = query.lte('created_at', `${endDate}T23:59:59Z`);
+
+    const { data, count, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    let opps = data || [];
+    if (closer && closer !== 'all') {
+      opps = opps.filter(o => exportExtractCloser(o).toLowerCase() === String(closer).toLowerCase());
+    }
+    if (origin && origin !== 'all') {
+      opps = opps.filter(o => exportExtractOrigin(o).toLowerCase() === String(origin).toLowerCase());
+    }
+
+    res.json({ count: opps.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Vite Setup ---
 
 async function startServer() {

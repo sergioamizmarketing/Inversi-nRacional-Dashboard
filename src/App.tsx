@@ -8,6 +8,7 @@ import {
   Target,
   MessageSquare,
   Settings,
+  Download,
   Loader2
 } from 'lucide-react';
 
@@ -22,17 +23,19 @@ import { Performance } from './features/Performance';
 import { Targets } from './features/Targets';
 import { Copilot } from './features/Copilot';
 import { Settings as SettingsPage } from './features/Settings';
+import { Export } from './features/Export';
 import { Auth } from './features/auth/Auth';
 import { PendingApproval } from './features/auth/PendingApproval';
 import { AdminUsers } from './features/AdminUsers';
 
 const navigations = [
-  { icon: LayoutDashboard, label: 'Resumen', to: '/overview' },
-  { icon: Users, label: 'Rendimiento', to: '/performance' },
-  { icon: Target, label: 'Objetivos', to: '/targets' },
-  { icon: MessageSquare, label: 'Copilot', to: '/copilot' },
-  { icon: Users, label: 'Gestión de Usuarios', to: '/admin/users' },
-  { icon: Settings, label: 'Ajustes de Integración', to: '/settings' }
+  { icon: LayoutDashboard, label: 'Resumen',               to: '/overview' },
+  { icon: Users,           label: 'Rendimiento',           to: '/performance' },
+  { icon: Target,          label: 'Objetivos',             to: '/targets' },
+  { icon: MessageSquare,   label: 'Copilot',               to: '/copilot' },
+  { icon: Download,        label: 'Exportar Datos',        to: '/export',       roles: ['manager', 'admin'] },
+  { icon: Users,           label: 'Gestión de Usuarios',   to: '/admin/users',  roles: ['admin'] },
+  { icon: Settings,        label: 'Ajustes de Integración',to: '/settings',     roles: ['admin'] },
 ];
 
 export default function App() {
@@ -217,7 +220,7 @@ export default function App() {
         <div className="absolute top-0 right-[-10%] w-[40vw] h-[40vw] rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 blur-3xl mix-blend-multiply dark:mix-blend-screen pointer-events-none z-0"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-purple-500/10 dark:bg-purple-500/5 blur-3xl mix-blend-multiply dark:mix-blend-screen pointer-events-none z-0"></div>
 
-        <Sidebar navigations={navigations} />
+        <Sidebar navigations={navigations.filter(n => !n.roles || n.roles.includes(user?.role ?? ''))} />
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 w-full">
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-8 pt-0 scroll-smooth pb-24">
@@ -229,6 +232,9 @@ export default function App() {
               <Route path="/performance" element={<Performance />} />
               <Route path="/targets" element={<Targets />} />
               <Route path="/copilot" element={<Copilot />} />
+              {(user?.role === 'manager' || user?.role === 'admin') && (
+                <Route path="/export" element={<Export />} />
+              )}
               {user?.role === 'admin' && (
                 <>
                   <Route path="/admin/users" element={<AdminUsers />} />
