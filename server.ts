@@ -695,17 +695,7 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
       console.warn("Metadata sync failed, but proceeding with opportunities:", metaError.message);
     }
 
-    // 1. If Full Sync, wipe existing data for this location first
-    if (isFullSync) {
-      console.log(`Wiping existing opportunities for location ${locationId} before full sync...`);
-      const { error: wipeErr } = await supabase
-        .from('opportunities')
-        .delete()
-        .eq('location_id', locationId);
-      if (wipeErr) {
-        console.warn("Wipe failed, continuing anyway:", wipeErr.message);
-      }
-    }
+    // Full sync wipe happens AFTER fetching data (safety guard below)
 
     let allOpps: any[] = [];
 
@@ -757,18 +747,30 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
                 hasMore = false;
               }
             } catch (err: any) {
-              console.error(`Page ${page} failed for ${status}:`, err.message);
-              hasMore = false;
+              const detail = err.response?.data || err.message;
+              console.error(`Page ${page} failed for status=${status}:`, detail);
+              throw new Error(`GHL API error (${status} p.${page}): ${JSON.stringify(detail)}`);
             }
           }
         }
         console.log(`V2 Search completed. Total unique opportunities found: ${allOpps.length}`);
       }
     } catch (ghlError: any) {
-      console.error("GHL API Error during sync:", ghlError.response?.data || ghlError.message);
-      return res.status(ghlError.response?.status || 500).json({
-        error: ghlError.response?.data || ghlError.message
-      });
+      const detail = ghlError.response?.data || ghlError.message;
+      console.error("GHL API Error during sync:", detail);
+      return res.status(ghlError.response?.status || 500).json({ error: detail });
+    }
+
+    // Safety guard: never wipe the DB if GHL returned 0 results
+    if (allOpps.length === 0) {
+      return res.status(422).json({ error: "GHL devolvió 0 oportunidades — sync abortado para proteger los datos existentes. Revisa los logs del servidor." });
+    }
+
+    // Now safe to wipe for full sync
+    if (isFullSync) {
+      console.log(`Wiping existing opportunities for location ${locationId} before full sync...`);
+      const { error: wipeErr } = await supabase.from('opportunities').delete().eq('location_id', locationId);
+      if (wipeErr) console.warn("Wipe failed, continuing anyway:", wipeErr.message);
     }
 
     // 1. Upsert Contacts first to satisfy foreign key constraints
