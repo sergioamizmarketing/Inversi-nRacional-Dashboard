@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Target } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { supabase } from '../lib/supabase';
 
 export const Settings = () => {
     const { addToast, connection } = useStore();
@@ -23,7 +24,11 @@ export const Settings = () => {
         setSyncing(true);
         setConfirmOpen(false);
         try {
-            const res = await fetch(`/api/crm/sync?locationId=${connection.location_id}&full=true`);
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = session
+                ? { Authorization: `Bearer ${session.access_token}` }
+                : {};
+            const res = await fetch(`/api/crm/sync?locationId=${connection.location_id}&full=true`, { headers });
             const data = await res.json();
             if (res.ok) {
                 await Promise.all([
