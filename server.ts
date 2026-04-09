@@ -724,7 +724,7 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
             safetyCounter++;
             try {
               const oppRes = await ghl.post("/opportunities/search", {
-                location_id: locationId,
+                locationId,
                 status,
                 limit: 100,
                 page: page
@@ -748,8 +748,9 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
               }
             } catch (err: any) {
               const detail = err.response?.data || err.message;
-              console.error(`Page ${page} failed for status=${status}:`, detail);
-              throw new Error(`GHL API error (${status} p.${page}): ${JSON.stringify(detail)}`);
+              const httpStatus = err.response?.status;
+              console.error(`Page ${page} failed for status=${status} [HTTP ${httpStatus}]:`, JSON.stringify(detail));
+              throw Object.assign(new Error(`GHL API error (${status} p.${page}): ${JSON.stringify(detail)}`), { httpStatus });
             }
           }
         }
@@ -757,8 +758,9 @@ app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
       }
     } catch (ghlError: any) {
       const detail = ghlError.response?.data || ghlError.message;
+      const status = ghlError.httpStatus || ghlError.response?.status || 500;
       console.error("GHL API Error during sync:", detail);
-      return res.status(ghlError.response?.status || 500).json({ error: detail });
+      return res.status(status).json({ error: typeof detail === 'string' ? detail : JSON.stringify(detail) });
     }
 
     // Safety guard: never wipe the DB if GHL returned 0 results
