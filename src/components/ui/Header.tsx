@@ -1,10 +1,10 @@
 import React from 'react';
-import { Sun, Moon, Clock, RefreshCw, Filter, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Sun, Moon, Clock, RefreshCw, Filter, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { format, formatDistanceToNow, isToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
+export const Header = () => {
     const {
         isDark,
         toggleTheme,
@@ -123,13 +123,6 @@ export const Header = ({ onNewReport }: { onNewReport: () => void }) => {
                         </div>
                     </div>
 
-                    <button
-                        onClick={onNewReport}
-                        className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span className="hidden sm:inline">Nuevo Informe</span>
-                    </button>
                 </div>
             </div>
 

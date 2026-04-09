@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '../store/useStore';
-import { TrendingUp, AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { EmptyState } from '../components/ui/Indicators';
 import { CloserDashboard } from './CloserDashboard';
 

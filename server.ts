@@ -613,7 +613,7 @@ async function refreshGHLData(locationId: string, opportunityId: string) {
 
 // --- Metrics Endpoints ---
 
-app.get("/api/crm/sync", async (req, res) => {
+app.get("/api/crm/sync", requireAdmin, async (req: any, res: any) => {
   try {
     const { locationId, full } = req.query;
     if (!locationId) return res.status(400).json({ error: "Missing locationId" });
@@ -969,7 +969,7 @@ app.get("/api/crm/sync", async (req, res) => {
 });
 
 
-app.get("/api/metrics/overview", async (req, res) => {
+app.get("/api/metrics/overview", requireAuth, async (req: any, res: any) => {
   const { locationId, startDate, endDate, pipelineId, userId, source } = req.query;
 
   try {
@@ -1099,7 +1099,7 @@ app.get("/api/metrics/overview", async (req, res) => {
   }
 });
 
-app.get("/api/crm/pipelines", async (req, res) => {
+app.get("/api/crm/pipelines", requireAuth, async (req: any, res: any) => {
   const { locationId } = req.query;
   try {
     const connection = await getValidConnection(locationId as string);
@@ -1129,7 +1129,7 @@ app.get("/api/crm/pipelines", async (req, res) => {
   }
 });
 
-app.get("/api/crm/users", async (req, res) => {
+app.get("/api/crm/users", requireAuth, async (req: any, res: any) => {
   const { locationId } = req.query;
   try {
     const connection = await getValidConnection(locationId as string);
@@ -1159,7 +1159,7 @@ app.get("/api/crm/users", async (req, res) => {
   }
 });
 
-app.get("/api/crm/closers", async (req, res) => {
+app.get("/api/crm/closers", requireAuth, async (req: any, res: any) => {
   const { locationId } = req.query;
   try {
     const { data, error } = await supabase.from('opportunities').select('raw, custom_fields').eq("location_id", locationId);
@@ -1205,7 +1205,7 @@ app.get("/api/crm/closers", async (req, res) => {
 
 // --- Targets Endpoints ---
 
-app.get("/api/targets", async (req, res) => {
+app.get("/api/targets", requireAuth, async (req: any, res: any) => {
   const { locationId } = req.query;
   try {
     const { data, error } = await supabase
@@ -1226,7 +1226,7 @@ app.get("/api/targets", async (req, res) => {
   }
 });
 
-app.post("/api/targets", async (req, res) => {
+app.post("/api/targets", requireAdmin, async (req: any, res: any) => {
   const { locationId, targets } = req.body;
   try {
     const upsertData = targets.map((t: any) => ({
@@ -1248,7 +1248,7 @@ app.post("/api/targets", async (req, res) => {
   }
 });
 
-app.get("/api/crm/funnel", async (req, res) => {
+app.get("/api/crm/funnel", requireAuth, async (req: any, res: any) => {
   const { locationId, pipelineId, startDate, endDate, userId } = req.query;
   try {
     let query = supabase
@@ -1284,7 +1284,7 @@ app.get("/api/crm/funnel", async (req, res) => {
   }
 });
 
-app.get("/api/crm/opportunities", async (req, res) => {
+app.get("/api/crm/opportunities", requireAuth, async (req: any, res: any) => {
   const { locationId, pipelineId, startDate, endDate, userId, source } = req.query;
   try {
     let query = supabase

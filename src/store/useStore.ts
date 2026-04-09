@@ -8,20 +8,86 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  role: 'pending' | 'viewer' | 'closer' | 'manager' | 'admin';
+  full_name?: string;
+  profile?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface GHLConnection {
+  id: string;
+  location_id: string;
+  access_token: string;
+  refresh_token: string;
+  token_expires_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  stages?: PipelineStage[];
+  [key: string]: unknown;
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  position?: number;
+  [key: string]: unknown;
+}
+
+export interface GHLUser {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+export interface Opportunity {
+  id: string;
+  status: 'open' | 'won' | 'lost' | 'abandoned';
+  value?: number;
+  pipeline_id?: string;
+  stage_id?: string;
+  created_at?: string;
+  owner_user_id?: string;
+  location_id?: string;
+  custom_fields?: unknown;
+  raw?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface Metrics {
+  totalOpps: number;
+  revenue: number;
+  winRate: number;
+  totalInDb?: number;
+  prevRevenue?: number;
+  prevTotalOpps?: number;
+  prevWinRate?: number;
+  [key: string]: unknown;
+}
+
 interface AppState {
   // Auth & Connection
-  user: any | null;
-  connection: any | null;
-  pipelines: any[];
-  ghlUsers: any[];
+  user: UserProfile | null;
+  connection: GHLConnection | null;
+  pipelines: Pipeline[];
+  ghlUsers: GHLUser[];
   customClosers: string[];
   isDark: boolean;
   sidebarOpen: boolean;
 
   // Data
-  opportunities: any[];
+  opportunities: Opportunity[];
   totalOpps: number;
-  metrics: any | null;
+  metrics: Metrics | null;
 
   // Toasts
   toasts: Toast[];
@@ -38,16 +104,16 @@ interface AppState {
   };
 
   // Actions
-  setUser: (user: any | null) => void;
-  setConnection: (connection: any | null) => void;
-  setPipelines: (pipelines: any[]) => void;
-  setGhlUsers: (users: any[]) => void;
+  setUser: (user: UserProfile | null) => void;
+  setConnection: (connection: GHLConnection | null) => void;
+  setPipelines: (pipelines: Pipeline[]) => void;
+  setGhlUsers: (users: GHLUser[]) => void;
   setCustomClosers: (closers: string[]) => void;
   toggleTheme: () => void;
   toggleSidebar: () => void;
-  setOpportunities: (opps: any[]) => void;
+  setOpportunities: (opps: Opportunity[]) => void;
   setTotalOpps: (total: number) => void;
-  setMetrics: (metrics: any) => void;
+  setMetrics: (metrics: Metrics | null) => void;
   setFilters: (filters: Partial<AppState['filters']>) => void;
   handlePeriodChange: (period: string) => void;
 
@@ -83,15 +149,7 @@ export const useStore = create<AppState>((set, get) => ({
   setPipelines: (pipelines) => set({ pipelines }),
   setGhlUsers: (ghlUsers) => set({ ghlUsers }),
   setCustomClosers: (customClosers) => set({ customClosers }),
-  toggleTheme: () => set((state) => {
-    const newIsDark = !state.isDark;
-    if (newIsDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    return { isDark: newIsDark };
-  }),
+  toggleTheme: () => set((state) => ({ isDark: !state.isDark })),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setOpportunities: (opportunities) => set({ opportunities }),
   setTotalOpps: (totalOpps) => set({ totalOpps }),
@@ -160,10 +218,15 @@ export const useStore = create<AppState>((set, get) => ({
     const { connection } = get();
     if (!connection) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = session
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
       const [pipeRes, userRes, closersRes] = await Promise.all([
-        fetch(`/api/crm/pipelines?locationId=${connection.location_id}`),
-        fetch(`/api/crm/users?locationId=${connection.location_id}`),
-        fetch(`/api/crm/closers?locationId=${connection.location_id}`)
+        fetch(`/api/crm/pipelines?locationId=${connection.location_id}`, { headers }),
+        fetch(`/api/crm/users?locationId=${connection.location_id}`, { headers }),
+        fetch(`/api/crm/closers?locationId=${connection.location_id}`, { headers })
       ]);
 
       if (pipeRes.ok) {
@@ -182,6 +245,7 @@ export const useStore = create<AppState>((set, get) => ({
       }
     } catch (err) {
       console.error('Error fetching metadata:', err);
+      useStore.getState().addToast('Error al cargar los metadatos del CRM.', 'error');
     }
   },
 
@@ -189,6 +253,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { connection, filters } = get();
     if (!connection) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = session
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
       const query = new URLSearchParams({
         locationId: connection.location_id,
         startDate: filters.startDate,
@@ -196,12 +265,14 @@ export const useStore = create<AppState>((set, get) => ({
         pipelineId: filters.pipelineId,
         userId: filters.userId
       });
-      const res = await fetch(`/api/crm/opportunities?${query.toString()}`);
+      const res = await fetch(`/api/crm/opportunities?${query.toString()}`, { headers });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       set({ opportunities: Array.isArray(data) ? data : [] });
     } catch (err) {
       console.error('Error fetching opportunities:', err);
       set({ opportunities: [] });
+      useStore.getState().addToast('Error al cargar las oportunidades.', 'error');
     }
   },
 
@@ -209,6 +280,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { connection, filters } = get();
     if (!connection) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = session
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+
       const query = new URLSearchParams({
         locationId: connection.location_id,
         startDate: filters.startDate,
@@ -216,12 +292,14 @@ export const useStore = create<AppState>((set, get) => ({
         pipelineId: filters.pipelineId,
         userId: filters.userId
       });
-      const res = await fetch(`/api/metrics/overview?${query.toString()}`);
+      const res = await fetch(`/api/metrics/overview?${query.toString()}`, { headers });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       set({ metrics: data });
       if (data.totalInDb !== undefined) set({ totalOpps: data.totalInDb });
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching metrics:', err);
+      useStore.getState().addToast('Error al cargar las métricas. Intenta de nuevo.', 'error');
     }
   }
 }));

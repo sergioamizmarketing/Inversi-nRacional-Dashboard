@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../store/useStore';
-import { ChartSkeleton, EmptyState } from '../components/ui/Indicators';
+import { EmptyState } from '../components/ui/Indicators';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Label,
     AreaChart, Area
 } from 'recharts';
-import { format, parseISO, startOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Colors based on the screenshot (GHL standard)
@@ -143,9 +143,9 @@ export const Overview = () => {
             dateGroups[dateStr] = (dateGroups[dateStr] || 0) + 1;
         });
 
-        Object.keys(dateGroups)
+        [...Object.keys(dateGroups)]
             .sort()
-            .forEach(date => {
+            .forEach((date: string) => {
                 timeData.push({
                     date: format(parseISO(date), 'dd MMM', { locale: es }),
                     count: dateGroups[date]

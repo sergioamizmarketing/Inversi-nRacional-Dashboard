@@ -2,15 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { useStore } from './store/useStore';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
   Users,
-  GitBranch,
   Target,
   MessageSquare,
   Settings,
-  BarChart2,
   Loader2
 } from 'lucide-react';
 
@@ -24,6 +21,7 @@ import { Overview } from './features/Overview';
 import { Performance } from './features/Performance';
 import { Targets } from './features/Targets';
 import { Copilot } from './features/Copilot';
+import { Settings as SettingsPage } from './features/Settings';
 import { Auth } from './features/auth/Auth';
 import { PendingApproval } from './features/auth/PendingApproval';
 import { AdminUsers } from './features/AdminUsers';
@@ -38,7 +36,6 @@ const navigations = [
 ];
 
 export default function App() {
-  console.log("APP COMPONENT RENDER INITIATED");
   const {
     isDark,
     user,
@@ -53,7 +50,15 @@ export default function App() {
   } = useStore();
 
   const [loading, setLoading] = useState(true);
-  const [showReportModal, setShowReportModal] = useState(false);
+
+  // Sync isDark to the DOM — keep side effect out of the store
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
 
   useEffect(() => {
     checkUser();
@@ -108,8 +113,7 @@ export default function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'opportunities', filter: `location_id=eq.${connection.location_id}` },
-        (payload) => {
-          console.log("Realtime: Opportunities table changed", payload);
+        () => {
           useStore.getState().fetchOpportunities();
           useStore.getState().fetchMetrics();
         }
@@ -119,14 +123,11 @@ export default function App() {
         { event: '*', schema: 'public', table: 'ghl_connection', filter: `location_id=eq.${connection.location_id}` },
         (payload) => {
           if (payload.new) {
-            console.log("Realtime: Connection sync updated", payload.new);
-            setConnection(payload.new);
+            setConnection(payload.new as import('./store/useStore').GHLConnection);
           }
         }
       )
-      .subscribe((status) => {
-        console.log("Supabase Realtime Status:", status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -146,7 +147,7 @@ export default function App() {
 
   const checkUser = async () => {
     try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase timeout timeout")), 8000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase timeout")), 8000));
 
       const { data: { session }, error: sessionError } = await Promise.race([
         supabase.auth.getSession(),
@@ -193,27 +194,24 @@ export default function App() {
       } else {
         setConnection(null);
       }
-    } catch (err) {
+    } catch {
       setConnection(null);
     }
   };
 
-  // Restore Login Wall but remove Pending Approval check
   if (loading) return (
     <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
       <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
     </div>
   );
 
-  if (!user) return (
-    <Auth />
-  );
+  if (!user) return <Auth />;
 
   if (user?.role === 'pending') return <PendingApproval />;
 
   return (
     <BrowserRouter>
-      <div className={`flex h-screen overflow-hidden ${isDark ? 'dark' : ''} bg-slate-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative`}>
+      <div className={`flex h-screen overflow-hidden ${isDark ? 'dark' : ''} bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative`}>
 
         {/* Animated Background Blobs for Glassmorphism effect */}
         <div className="absolute top-0 right-[-10%] w-[40vw] h-[40vw] rounded-full bg-indigo-500/10 dark:bg-indigo-500/5 blur-3xl mix-blend-multiply dark:mix-blend-screen pointer-events-none z-0"></div>
@@ -223,7 +221,7 @@ export default function App() {
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 w-full">
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-8 pt-0 scroll-smooth pb-24">
-            <Header onNewReport={() => setShowReportModal(true)} />
+            <Header />
 
             <Routes>
               <Route path="/" element={<Navigate to="/overview" replace />} />
@@ -234,72 +232,7 @@ export default function App() {
               {user?.role === 'admin' && (
                 <>
                   <Route path="/admin/users" element={<AdminUsers />} />
-                  <Route path="/settings" element={
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 dark:border-slate-700 text-center max-w-md mx-auto mt-12 shadow-xl">
-                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/50 dark:to-purple-900/50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                        <Settings className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                      </div>
-                      <h2 className="text-2xl font-bold mb-4">Ajustes de Integración</h2>
-                      <p className="text-slate-500 dark:text-slate-400 mb-8">Administra tus conexiones a fuentes de datos y CRM.</p>
-                      <button
-                        onClick={() => {
-                          const width = 600;
-                          const height = 700;
-                          const left = window.screen.width / 2 - width / 2;
-                          const top = window.screen.height / 2 - height / 2;
-                          window.open('/api/crm/oauth/start', 'GHL_Auth', 'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left);
-                        }}
-                        className="inline-flex items-center justify-center gap-2 w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-blue-900/20 transition-all cursor-pointer mb-4">
-                        <Target className="w-5 h-5" />
-                        Vincular / Actualizar GoHighLevel
-                      </button>
-
-                      <hr className="border-slate-200 dark:border-slate-700 my-6" />
-
-                      <h3 className="text-lg font-bold text-rose-500 mb-2">Zona de Peligro</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                        Si los datos del Dashboard no coinciden con GHL, usa este botón para borrar la base de datos local y traer todo de nuevo.
-                      </p>
-
-                      <button
-                        onClick={async () => {
-                          if (!useStore.getState().connection) return addToast('No hay conexión activa con GoHighLevel.', 'error');
-                          if (confirm('¿Estás seguro de que quieres reiniciar los datos? Esto borrará los registros actuales y los traerá frescos de GHL.')) {
-                            try {
-                              const btn = document.getElementById('btn-reiniciar');
-                              if (btn) btn.innerText = 'Sincronizando...';
-                              const { location_id } = useStore.getState().connection;
-                              const url = `/api/crm/sync?locationId=${location_id}&full=true`;
-                              const res = await fetch(url);
-                              const data = await res.json();
-
-                              if (res.ok) {
-                                await Promise.all([
-                                  useStore.getState().fetchMetrics(),
-                                  useStore.getState().fetchMetadata(),
-                                  useStore.getState().fetchOpportunities()
-                                ]);
-                                addToast(`Reinicio completado. ${data.count} oportunidades importadas.`, 'success');
-                              } else {
-                                const errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-                                console.error("Sync Error Detailed:", data.error);
-                                addToast(errorMessage || 'Error en la sincronización', 'error');
-                              }
-                            } catch (err: any) {
-                              console.error("Fatal Sync Error:", err);
-                              addToast('Error fatal al sincronizar: ' + err.message, 'error');
-                            } finally {
-                              const btn = document.getElementById('btn-reiniciar');
-                              if (btn) btn.innerText = 'Reiniciar Base de Datos Local';
-                            }
-                          }
-                        }}
-                        id="btn-reiniciar"
-                        className="inline-flex items-center justify-center gap-2 w-full px-8 py-4 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 rounded-xl font-bold border border-rose-200 dark:border-rose-500/30 transition-all cursor-pointer">
-                        Reiniciar Base de Datos Local
-                      </button>
-                    </div>
-                  } />
+                  <Route path="/settings" element={<SettingsPage />} />
                 </>
               )}
               <Route path="*" element={<Navigate to="/overview" replace />} />
@@ -307,38 +240,8 @@ export default function App() {
           </div>
         </main>
 
-        {/* Report Modal */}
-        {
-          showReportModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                className="bg-white dark:bg-slate-800 w-full max-w-md p-8 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700"
-              >
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Enviar Informe Ejecutivo</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Generaremos un resumen en PDF con base a los filtros actuales.</p>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Destinatario</label>
-                    <input type="email" placeholder="ceo@empresa.com" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium text-slate-900 dark:text-white" />
-                  </div>
-                  <div className="flex gap-3 pt-4">
-                    <button onClick={() => setShowReportModal(false)} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-                      Cancelar
-                    </button>
-                    <button onClick={() => { addToast('Informe enviado correctamente', 'success'); setShowReportModal(false); }} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 transition-all">
-                      Enviar
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )
-        }
-      <Toaster />
-      </div >
-    </BrowserRouter >
+        <Toaster />
+      </div>
+    </BrowserRouter>
   );
 }
