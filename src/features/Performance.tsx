@@ -51,7 +51,25 @@ export const Performance = () => {
         const wonOpps = userOpps.filter((o: any) => o.status === 'won');
         const lostOpps = userOpps.filter((o: any) => o.status === 'lost');
 
-        const revenue = wonOpps.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
+        const getCustomFieldNumeric = (o: any, labelMatch: string): number => {
+            const rawCFs = o.custom_fields || o.raw?.customFields;
+            if (!Array.isArray(rawCFs)) return 0;
+            const field = rawCFs.find((f: any) => {
+                const label = String(f.name || f.label || f.fieldKey || '').toLowerCase();
+                return label.includes(labelMatch);
+            });
+            if (!field) return 0;
+            const raw = field.fieldValue ?? field.value ?? field.fieldValueString ?? '';
+            const num = parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+            return isNaN(num) ? 0 : num;
+        };
+
+        const revenue = wonOpps.reduce((sum: number, o: any) => {
+            const neto = getCustomFieldNumeric(o, 'importe base neto');
+            return sum + (neto > 0 ? neto : Number(o.value || 0));
+        }, 0);
+        const commission = wonOpps.reduce((sum: number, o: any) => sum + getCustomFieldNumeric(o, 'comisión closer'), 0)
+            || wonOpps.reduce((sum: number, o: any) => sum + getCustomFieldNumeric(o, 'comision closer'), 0);
         const winRate = userOpps.length > 0 ? (wonOpps.length / userOpps.length) * 100 : 0;
         const avgDeal = wonOpps.length > 0 ? revenue / wonOpps.length : 0;
 
@@ -62,6 +80,7 @@ export const Performance = () => {
             id: closerName,
             firstName: closerName,
             revenue,
+            commission,
             oppCount: userOpps.length,
             winRate,
             avgDeal,
@@ -110,7 +129,8 @@ export const Performance = () => {
                     <thead className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200/50 dark:border-slate-700/50">
                         <tr>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Closer / Vendedor</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ingresos (€)</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Importe Neto (€)</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Comisión (€)</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Tasa de Cierre (Win Rate)</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Drop-off Rate (Pérdidas)</th>
                             <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trato Medio</th>
@@ -142,7 +162,12 @@ export const Performance = () => {
                                 </td>
                                 <td className="px-6 py-5">
                                     <div className="font-extrabold text-slate-900 dark:text-white text-lg group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                        €{closer.revenue.toLocaleString()}
+                                        €{closer.revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-5">
+                                    <div className="font-semibold text-emerald-600 dark:text-emerald-400 text-base">
+                                        €{closer.commission.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                     </div>
                                 </td>
                                 <td className="px-6 py-5">
